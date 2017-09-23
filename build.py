@@ -2,9 +2,9 @@ from torch.utils.ffi import create_extension
 
 ffi_plan_cufft = create_extension(
     'ops.gpu.lib_cufft',
-    headers=['ops/gpu/plan_cufft.h'],
+    headers=['s2cnn/ops/gpu/plan_cufft.h'],
     package=True,
-    sources=['ops/gpu/plan_cufft.c'],
+    sources=['s2cnn/ops/gpu/plan_cufft.c'],
     define_macros=[('WITH_CUDA', None)],
     relative_to=__file__,
     libraries=['cufft'],
