@@ -5,7 +5,8 @@ This library contains a PyTorch implementation of the SO(3) equivariant CNNs for
 
 ## Dependencies
 
-* __PyTorch__
+* __PyTorch__http://pytorch.org/
+* __cupy__: https://github.com/cupy/cupy
 * __lie_learn__: https://github.com/AMLab-Amsterdam/lie_learn
 
 ## Installation
