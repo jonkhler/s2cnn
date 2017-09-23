@@ -22,7 +22,7 @@ except ImportError:
 setup(
     name='s2cnn',
     version = "1.0.0",
-    author = "Mario Geiger, Taco Cohen, Jonas Köhler",
+    author = "Mario Geiger, Taco Cohen, Jonas Koehler",
     description = ("SO(3) equivariant CNNs for PyTorch."),
     license = "MIT",
     keywords = "so3 equivariant cnn pytorch",
