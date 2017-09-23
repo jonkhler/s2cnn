@@ -19,6 +19,8 @@ try:
 except ImportError:
     print("PyTorch is not available on your system.")
 
+print(find_packages(exclude=["build"]))
+
 setup(
     name='s2cnn',
     version = "1.0.0",

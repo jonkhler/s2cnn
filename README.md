@@ -17,13 +17,13 @@ $ python setup.py install
 ```
 
 ## Structure
-* [__nn__](nn): PyTorch nn.Modules for the S(2) and SO(3) CNN layers
-* [__ops__](ops): Low-level operations used for computing the FFT
-* [__examples__](examples): Example code for using the library within a PyTorch project
-    - [__spherical_mnist__](examples/spherical_mnist): Data and example code for applying s2cnn on MNIST digits projected on a sphere
+* [__nn__](s2cnn/nn): PyTorch nn.Modules for the S(2) and SO(3) CNN layers
+* [__ops__](s2cnn/ops): Low-level operations used for computing the FFT
+* [__examples__](s2cnn/examples): Example code for using the library within a PyTorch project
+    - [__spherical_mnist__](s2cnn/examples/spherical_mnist): Data and example code for applying s2cnn on MNIST digits projected on a sphere
 
 ## Usage
-Please have a look into the [examples](examples).
+Please have a look into the [examples](s2cnn/examples).
 
 Please cite [1] in your work when using this library in your experiments.
 

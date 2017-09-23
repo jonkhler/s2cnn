@@ -4,6 +4,8 @@
 *.egg-info
 *.eggs
 
+build
+dist
 
 # Compiled source #
 ###################
