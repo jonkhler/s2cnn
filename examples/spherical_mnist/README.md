@@ -11,7 +11,7 @@
 
 This is the classic MNIST data set projected on the sphere, using a stereographic projection from the north pole. The sphere is parameterized by its angles phi and theta. In the current setup we use the SOFT[1] grid with a bandwidth b for representing the sphere. To reduce artifacts we use bilinear sampling to map the projection on the grid.
 
-## Dependencies
+### Dependencies
 
 * __Tensorflow__
 
