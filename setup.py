@@ -27,7 +27,7 @@ setup(
     license = "MIT",
     keywords = "so3 equivariant cnn pytorch",
     url = "https://github.com/AMLab-Amsterdam/s2cnn",
-    long_description=read('README'),
+    long_description=read('README.md'),
     install_requires=["cffi>=1.0.0"],
     setup_requires=["cffi>=1.0.0"],
     packages=find_packages(exclude=["build"]),
