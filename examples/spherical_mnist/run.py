@@ -2,8 +2,8 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from .architecture import Mnist_Classifier
-from .utils import load_data
+from architecture import Mnist_Classifier
+from utils import load_data
 
 # data
 MNIST_PATH =  "s2_mnist.gz"
