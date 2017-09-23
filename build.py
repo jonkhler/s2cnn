@@ -12,4 +12,5 @@ ffi_plan_cufft = create_extension(
 )
 
 if __name__ == '__main__':
+    print("build CUDA dependencies")
     ffi_plan_cufft.build()
