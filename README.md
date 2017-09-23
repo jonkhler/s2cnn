@@ -25,7 +25,7 @@ $ python setup.py install
 ## Usage
 Please have a look into the [examples](examples).
 
-Please cite `[1] in your work when using this library in your experiments.
+Please cite [1] in your work when using this library in your experiments.
 
 ## Feedback
 For questions and comments, feel free to contact [Taco Cohen](http://ta.co.nl).
