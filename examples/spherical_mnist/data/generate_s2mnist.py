@@ -3,10 +3,7 @@
 import gzip
 import pickle
 import numpy as np
-from matplotlib import cm
 import lie_learn.spaces.S2 as S2
-from mpl_toolkits.mplot3d import axes3d
-import matplotlib.pyplot as plt
 from scipy.ndimage import zoom
 import scipy
 from tensorflow.examples.tutorials.mnist import input_data
@@ -64,20 +61,6 @@ def rotate_grid(rot, grid):
     xyz = np.array((x, y, z))
     x_r, y_r, z_r = np.einsum('ij,jab->iab', rot, xyz)
     return x_r, y_r, z_r
-
-
-def debug_plot_projection(grid, signal, projected):
-    ''' plot projected signal on sphere '''
-    x_, y_, z_ = grid
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-
-    wframe = ax.plot_surface(x_, y_, z_, rstride=1, cstride=1, facecolors=cm.Greys_r(projected), vmin=0, vmax=1)
-
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(12,6))
-    ax1.matshow(signal, cmap="Greys_r")
-    ax2.matshow(projected, cmap="Greys_r")
 
 
 def get_projection_grid(b, grid_type="Driscoll-Healy"):
