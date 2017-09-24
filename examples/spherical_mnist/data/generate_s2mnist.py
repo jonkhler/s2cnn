@@ -3,11 +3,10 @@
 import gzip
 import pickle
 import numpy as np
-import lie_learn.spaces.S2 as S2
-from scipy.ndimage import zoom
-import scipy
-from tensorflow.examples.tutorials.mnist import input_data
 import argparse
+import lie_learn.spaces.S2 as S2
+from tensorflow.examples.tutorials.mnist import input_data
+
 
 NORTHPOLE_EPSILON = 1e-3
 
