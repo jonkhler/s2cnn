@@ -3,8 +3,8 @@ import torch.nn as nn
 from s2cnn.nn.soft.so3_conv import SO3Convolution
 from s2cnn.nn.soft.s2_conv import S2Convolution
 from s2cnn.nn.soft.so3_integrate import so3_integrate
-from sphere_cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
-from sphere_cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
+from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
+from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
 import torch.nn.functional as F
 
 
