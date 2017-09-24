@@ -142,7 +142,7 @@ def __setup_wigner(b, nl, weighted):
 
 @lru_cache(maxsize=32)
 def _setup_fft_plan(b, nbatch):
-    from sphere_cnn.ops.gpu.torchcufft import Plan1d_c2c
+    from s2cnn.ops.gpu.torchcufft import Plan1d_c2c
 
     plan = Plan1d_c2c(N=2 * b, batch=nbatch * 2 * b)
     return plan
@@ -227,7 +227,7 @@ class S2_fft_real(torch.autograd.Function):
         self.b_out = b_out
 
     def forward(self, x): #pylint: disable=W
-        from sphere_cnn.ops.complex_utils import as_complex
+        from s2cnn.utils.complex_utils import as_complex
         self.b_in = x.size(-1) // 2
         return s2_fft(as_complex(x), b_out=self.b_out)
 
@@ -246,5 +246,5 @@ class S2_ifft_real(torch.autograd.Function):
         return s2_ifft(x, b_out=self.b_out)[..., 0]
 
     def backward(self, grad_output): #pylint: disable=W
-        from sphere_cnn.ops.complex_utils import as_complex
+        from s2cnn.utils.complex_utils import as_complex
         return s2_fft(as_complex(grad_output), for_grad=True, b_out=self.b_in)
