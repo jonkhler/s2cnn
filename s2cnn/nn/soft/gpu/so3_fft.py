@@ -227,7 +227,7 @@ def _setup_fft_plan(b, nbatch):
 
 @lru_cache(maxsize=32)
 def _setup_rfft_plan(b, nbatch):
-    from sphere_cnn.ops.gpu.torchcufft import Plan2d_r2c
+    from s2cnn.ops.gpu.torchcufft import Plan2d_r2c
 
     plan = Plan2d_r2c(N0=2 * b, N1=2 * b, batch=nbatch * 2 * b)
     return plan
