@@ -2,7 +2,6 @@
 from functools import lru_cache
 import torch
 from string import Template
-from util_cnn import time_logging
 import s2cnn.utils.cuda_utils as cuda_utils
 
 class S2_mm(torch.autograd.Function):
@@ -14,7 +13,6 @@ class S2_mm(torch.autograd.Function):
         return s2_mm(x, y)
 
     def backward(self, gradz): #pylint: disable=W
-        t0 = time_logging.start()
         x, y = self.saved_tensors
         nl = round(x.size(0)**0.5)
         nbatch = x.size(1)
@@ -43,7 +41,6 @@ class S2_mm(torch.autograd.Function):
                               args=[gradz.data_ptr(), x.data_ptr(), grady.data_ptr()],
                               stream=stream)
 
-        time_logging.end("ops.gpu.s2_mm.backward", t0)
         return gradx, grady
 
 
@@ -53,7 +50,6 @@ def s2_mm(x, y):
     :param y: [l * m,     feature_in, feature_out, complex]
     :return:  [l * m * n, batch,      feature_out, complex]
     '''
-    t0 = time_logging.start()
     assert y.size(3) == 2
     assert x.size(3) == 2
     nbatch = x.size(1)
@@ -76,7 +72,6 @@ def s2_mm(x, y):
                 stream=stream)
     # [l * m * n, batch, feature_out, complex]
 
-    time_logging.end("ops.gpu.s2_mm", t0)
     return output
 
 
