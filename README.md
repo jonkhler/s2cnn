@@ -8,6 +8,7 @@ This library contains a PyTorch implementation of the SO(3) equivariant CNNs for
 * __PyTorch__: http://pytorch.org/
 * __cupy__: https://github.com/cupy/cupy
 * __lie_learn__: https://github.com/AMLab-Amsterdam/lie_learn
+* __pynvrtc__: https://github.com/NVIDIA/pynvrtc
 
 ## Installation
 

@@ -29,16 +29,16 @@ class Mnist_Classifier(nn.Module):
 
         # first layer is a S(2) convolution
         self.s2_conv = S2Convolution(
-            in_channels=k_input,
-            out_channels=k_l1,
+            nfeature_in=k_input,
+            nfeature_out=k_l1,
             in_b=b_in,
             out_b=b_l1,
             size=ks_in)
 
         # second layer is a SO(3) convolution
         self.so3_conv = SO3Convolution(
-            in_channels=k_l1,
-            out_channels=k_l2,
+            nfeature_in=k_l1,
+            nfeature_out=k_l2,
             in_b=b_l1,
             out_b=b_out,
             size=ks_l1)
