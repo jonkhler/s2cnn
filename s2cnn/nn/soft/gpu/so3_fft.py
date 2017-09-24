@@ -220,7 +220,7 @@ def __setup_wigner(b, nl, weighted):
 
 @lru_cache(maxsize=32)
 def _setup_fft_plan(b, nbatch):
-    from sphere_cnn.ops.gpu.torchcufft import Plan2d_c2c
+    from s2cnn.ops.gpu.torchcufft import Plan2d_c2c
 
     plan = Plan2d_c2c(N0=2 * b, N1=2 * b, batch=nbatch * 2 * b)
     return plan
