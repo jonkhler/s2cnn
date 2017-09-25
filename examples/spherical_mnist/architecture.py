@@ -16,22 +16,21 @@ class Mnist_Classifier(nn.Module):
 
         # number of filters on each layer
         k_input = 1
-        k_l1 = 100
-        k_l2 = 200
+        k_l1 = 50
+        k_l2 = 100
         k_output = 10
 
         # bandwidth on each layer
         b_in = 30
-        b_l1 = 10
+        b_l1 = 15
         b_out = 5
 
         # grid for the s2 convolution
-        grid_s2 = s2_equatorial_grid(
-            max_beta=0, n_alpha=2 * b_in, n_beta=1)
+        grid_s2 = near_identity_grid(max_beta=np.pi / 8, n_alpha=b_in*2, n_beta=3)
 
         # grid for the so3 convolution
-        grid_so3 = so3_equatorial_grid(
-                max_beta=0, max_gamma=0, n_alpha=2 * b_l1, n_beta=1, n_gamma=1)
+        grid_so3 = near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=bl1*2, n_beta=3, n_gamma=3)
+
 
         # first layer is a S(2) convolution
         self.s2_conv = S2Convolution(
@@ -63,9 +62,7 @@ class Mnist_Classifier(nn.Module):
         x = self.so3_conv(x)
         x = F.relu(x)
 
-        # integrate out gamma dimension
-        # projecting the SO(3) signal
-        # back onto S(2)
+        # integrate signal over so3
         x = so3_integrate(x)
 
         # linear regression for the logits
