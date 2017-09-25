@@ -30,7 +30,7 @@ class Mnist_Classifier(nn.Module):
         grid_s2 = s2_near_identity_grid(max_beta=np.pi / 8, n_alpha=b_in*2, n_beta=3)
 
         # grid for the so3 convolution
-        grid_so3 = so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=bl1*2, n_beta=3, n_gamma=3)
+        grid_so3 = so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=b_l1*2, n_beta=3, n_gamma=3)
 
 
         # first layer is a S(2) convolution
