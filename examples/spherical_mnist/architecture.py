@@ -3,8 +3,8 @@ import torch.nn as nn
 from s2cnn.nn.soft.so3_conv import SO3Convolution
 from s2cnn.nn.soft.s2_conv import S2Convolution
 from s2cnn.nn.soft.so3_integrate import so3_integrate
-from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
-from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
+from s2cnn.ops.so3_localft import near_identity_grid as so3_near_identity_grid
+from s2cnn.ops.s2_localft import near_identity_grid as s2_near_identity_grid
 import torch.nn.functional as F
 
 
@@ -26,10 +26,10 @@ class Mnist_Classifier(nn.Module):
         b_out = 5
 
         # grid for the s2 convolution
-        grid_s2 = near_identity_grid(max_beta=np.pi / 8, n_alpha=b_in*2, n_beta=3)
+        grid_s2 = s2_near_identity_grid(max_beta=np.pi / 8, n_alpha=b_in*2, n_beta=3)
 
         # grid for the so3 convolution
-        grid_so3 = near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=bl1*2, n_beta=3, n_gamma=3)
+        grid_so3 = so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=bl1*2, n_beta=3, n_gamma=3)
 
 
         # first layer is a S(2) convolution
