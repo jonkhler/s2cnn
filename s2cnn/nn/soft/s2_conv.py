@@ -10,7 +10,7 @@ from s2cnn.ops.s2_localft import s2_local_ft
 from s2cnn.ops.gpu.s2_mm import S2_mm
 
 class S2Convolution(Module):
-    def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid, weight_scale=1):
+    def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid):
         '''
         :param nfeature_in: number of input fearures
         :param nfeature_out: number of output features
@@ -24,7 +24,6 @@ class S2Convolution(Module):
         self.b_in = b_in
         self.b_out = b_out
         self.grid = grid
-        self.weight_scale = weight_scale
         self.kernel = Parameter(torch.Tensor(nfeature_in, nfeature_out, len(grid)))
         self.bias = Parameter(torch.Tensor(1, nfeature_out, 1, 1, 1))
         self.reset_parameters()
@@ -32,7 +31,6 @@ class S2Convolution(Module):
     def reset_parameters(self):
         # stdv = 1 / len(self.grid)**0.5 / self.nfeature_in**0.5 / self.b_out**2 * self.b_in
         stdv = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 4.) / (self.b_in ** 2.))
-        stdv *= self.weight_scale
 
         self.kernel.data.normal_(0, stdv)
         self.bias.data[:] = 0
