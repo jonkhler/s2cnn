@@ -11,6 +11,13 @@ from s2cnn.ops.gpu.s2_mm import S2_mm
 
 class S2Convolution(Module):
     def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid, weight_scale=1):
+        '''
+        :param nfeature_in: number of input fearures
+        :param nfeature_out: number of output features
+        :param b_in: input bandwidth (precision of the input SOFT grid)
+        :param b_out: output bandwidth
+        :param grid: points of the sphere defining the kernel, tuple of (alpha, beta)'s
+        '''
         super(S2Convolution, self).__init__()
         self.nfeature_in = nfeature_in
         self.nfeature_out = nfeature_out

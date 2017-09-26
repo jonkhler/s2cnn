@@ -90,6 +90,11 @@ def naive_grid(angle=np.pi / 8, size=6):
     return tuple(tuple(abc) for abc in grid) # TODO numpy not hashable
 
 def near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n_beta=3, n_gamma=3):
+    '''
+    :return: rings of rotations around the identity, all points (rotations) in
+    a ring are at the same distance from the identity
+    size of the kernel = n_alpha * n_beta * n_gamma
+    '''
     alpha = np.linspace(start=0, stop=2 * np.pi, num=n_alpha, endpoint=False)
     beta = np.arange(start=1, stop=n_beta + 1, dtype=np.float) * max_beta / n_beta
     pre_gamma = np.linspace(start=-max_gamma, stop=max_gamma, num=n_gamma, endpoint=True)
@@ -104,6 +109,10 @@ def near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n_bet
     return tuple(tuple(abc) for abc in grid) # TODO numpy not hashable
 
 def equatorial_grid(max_beta=0, max_gamma=np.pi / 8, n_alpha=32, n_beta=1, n_gamma=2):
+    '''
+    :return: rings of rotations around the equator.
+    size of the kernel = n_alpha * n_beta * n_gamma
+    '''
     alpha = np.linspace(start=0, stop=2 * np.pi, num=n_alpha, endpoint=False)
     beta = np.linspace(start=np.pi/2 - max_beta, stop=np.pi/2 + max_beta, num=n_beta, endpoint=True)
     gamma = np.linspace(start=-max_gamma, stop=max_gamma, num=n_gamma, endpoint=True)

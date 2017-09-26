@@ -42,7 +42,7 @@ For our example we use a very simple architecture (`architecture.py`):
 
 ```python
 
-# architecture.py [...] 
+# architecture.py [...]
 
 # number of filters on each layer
 k_input = 1
@@ -78,6 +78,14 @@ self.so3_conv = SO3Convolution(
 # output layer is a linear regression on the filters
 self.out_layer = nn.Linear(k_l2, k_output)
 ```
+
+The kernel size and shape is defined by the function `near_identity_grid`.
+For the S2/SO3 convolution, the function returns a list (to be able to hash it, its in fact a tuple) of points on the sphere/rotation group.
+* For S2-convolution: rings of points around the north pole
+* for SO3-convolution: its natural extension on the rotation group.
+The number of rings is set by `n_beta` and the angle between the north pole and the most away ring is `max_beta`.
+The number of points on each rings is `n_alpha`.
+The kernel grid on rotations has two more parameters `max_gamma` and `n_gamma`.
 
 ### Running the experiment
 

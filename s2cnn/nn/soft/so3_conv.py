@@ -10,6 +10,13 @@ from s2cnn.ops.gpu.so3_mm import SO3_mm
 
 class SO3Convolution(Module):
     def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid, weight_scale=1):
+        '''
+        :param nfeature_in: number of input fearures
+        :param nfeature_out: number of output features
+        :param b_in: input bandwidth (precision of the input SOFT grid)
+        :param b_out: output bandwidth
+        :param grid: points of the SO(3) group defining the kernel, tuple of (alpha, beta, gamma)'s
+        '''
         super(SO3Convolution, self).__init__()
         self.nfeature_in = nfeature_in
         self.nfeature_out = nfeature_out
@@ -78,4 +85,3 @@ class SO3ShortcutV2(Module):
             return self.conv(x)
         else:
             return x
-
