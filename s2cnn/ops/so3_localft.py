@@ -76,19 +76,6 @@ def setup_so3_local_ft(b, grid, cuda_device=None):
     return F
 
 
-def naive_grid(angle=np.pi / 8, size=6):
-    alpha = np.linspace(start=-angle, stop=angle, num=size, endpoint=True)
-    beta = np.linspace(start=-angle, stop=angle, num=size, endpoint=True)
-    gamma = np.linspace(start=-angle, stop=angle, num=size, endpoint=True)
-    A, B, C = np.meshgrid(alpha, beta, gamma, indexing='ij')
-    A = A.flatten()
-    B = B.flatten()
-    C = C.flatten()
-    grid = np.stack((A, B, C), axis=1)
-    if sum(grid[:, 1] == 0) > 1:
-        warnings.warn("Gimbal lock: beta take value 0 in the grid")
-    return tuple(tuple(abc) for abc in grid) # TODO numpy not hashable
-
 def near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n_beta=3, n_gamma=3):
     '''
     :return: rings of rotations around the identity, all points (rotations) in

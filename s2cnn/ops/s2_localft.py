@@ -63,15 +63,6 @@ def setup_s2_local_ft(b, grid, cuda_device=None):
     return F
 
 
-def naive_grid(angle=np.pi / 8, size=6):
-    alpha = np.linspace(start=-angle, stop=angle, num=size, endpoint=True)
-    beta = np.linspace(start=-angle, stop=angle, num=size, endpoint=True)
-    A, B = np.meshgrid(alpha, beta, indexing='ij')
-    A = A.flatten()
-    B = B.flatten()
-    grid = np.stack((A, B), axis=1)
-    return tuple(tuple(ab) for ab in grid) # TODO numpy not hashable
-
 def near_identity_grid(max_beta=np.pi / 8, n_alpha=8, n_beta=3):
     '''
     :return: rings around the north pole
