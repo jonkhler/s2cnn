@@ -1,49 +1,46 @@
+'''
+Aim: see that L_R Phi(x) = Phi(L_R x)
+
+Where Phi is a composition of a S^2 convolution and a SO(3) convolution
+
+For simplicity, R is a rotation around the Z axis.
+'''
+
 #pylint: disable=C,R,E1101,W0621
-import numpy as np
 import torch
-from torch.autograd import Variable
 
-from s2cnn.nn.soft.so3_rotation import so3_rotation
+from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
+from s2cnn.nn.soft.s2_conv import S2Convolution
+from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
 from s2cnn.nn.soft.so3_conv import SO3Convolution
-from s2cnn.ops.so3_localft import equatorial_grid
-bandwidth = 30
 
-layers = 3
-number_of_features = 10
+# Define the two convolutions
+s2_grid = s2_equatorial_grid(max_beta=0, n_alpha=64, n_beta=1)
+s2_conv = S2Convolution(nfeature_in=12, nfeature_out=15, b_in=64, b_out=32, grid=s2_grid)
+s2_conv.cuda()
 
-# Pick random Euler angles
-alpha = np.random.rand() * 2 * np.pi
-beta = np.arccos(2 * np.random.rand() - 1)
-gamma = np.random.rand() * 2 * np.pi
+so3_grid = so3_equatorial_grid(max_beta=0, max_gamma=0, n_alpha=64, n_beta=1, n_gamma=1)
+so3_conv = SO3Convolution(nfeature_in=15, nfeature_out=21, b_in=32, b_out=24, grid=so3_grid)
+so3_conv.cuda()
 
-
-x = Variable(torch.randn(1, number_of_features, 2 * bandwidth, 2 * bandwidth, 2 * bandwidth), volatile=True).cuda()
-
-grid = equatorial_grid(max_beta=0, max_gamma=0, n_alpha=2 * bandwidth, n_beta=1, n_gamma=1)
-convs = [SO3Convolution(number_of_features, number_of_features, bandwidth, bandwidth, grid) for _ in range(layers)]
-
-for conv in convs:
-    conv.cuda()
-
-def foo(x):
-    for conv in convs:
-        x = conv(x)
+def phi(x):
+    x = s2_conv(x)
+    x = torch.nn.functional.relu(x)
+    x = so3_conv(x)
     return x
 
-# \Phi(x)
-y = foo(x)
+def rot(x, angle):
+    # rotate the signal around the Z axis
+    n = round(x.size(3) * angle / 360)
+    return torch.cat([x[:, :, :, n:], x[:, :, :, :n]], dim=3)
 
-# L_R \Phi(x)
-y1 = so3_rotation(y, alpha, beta, gamma)
+# Create random input
+x = torch.autograd.Variable(torch.randn(1, 12, 128, 128), volatile=True).cuda() # [batch, feature, beta, alpha]
 
-# \Phi(L_R x)
-y2 = foo(so3_rotation(x, alpha, beta, gamma))
+y = phi(x)
+y1 = rot(phi(x), angle=45)
+y2 = phi(rot(x, angle=45))
 
-
-y = y.data.cpu().numpy()
-y1 = y1.data.cpu().numpy()
-y2 = y2.data.cpu().numpy()
-
-relative_error = np.std(y1 - y2) / np.std(y)
+relative_error = torch.std(y1.data - y2.data) / torch.std(y.data)
 
 print('relative error = {}'.format(relative_error))
