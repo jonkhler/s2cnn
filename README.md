@@ -1,4 +1,5 @@
-# s2cnn - SO(3) equivariant CNNs for PyTorch
+# Spherical CNNs
+## Equivariant CNNs for the sphere and SO(3) implemented in PyTorch
 
 ## Overview
 This library contains a PyTorch implementation of the SO(3) equivariant CNNs for spherical signals (e.g. omnidirectional cameras, signals on the globe) as presented in [[1]](https://arxiv.org/abs/1709.04893).
