@@ -23,16 +23,14 @@ class SO3Convolution(Module):
         self.b_in = b_in
         self.b_out = b_out
         self.grid = grid
-        self.kernel = Parameter(torch.Tensor(nfeature_in, nfeature_out, len(grid)))
-        self.bias = Parameter(torch.Tensor(1, nfeature_out, 1, 1, 1))
-        self.reset_parameters()
+        self.kernel = Parameter(torch.randn(nfeature_in, nfeature_out, len(grid)))
+        self.bias = Parameter(torch.zeros(1, nfeature_out, 1, 1, 1))
 
-    def reset_parameters(self):
-        # stdv = 1 / len(self.grid)**0.5 / self.nfeature_in**0.5 / self.b_out**1.5 * self.b_in**1.5
-        stdv = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 3.) / (self.b_in ** 3.))
-
-        self.kernel.data.normal_(0, stdv)
-        self.bias.data[:] = 0
+        # When useing ADAM optimizer, the variance of each componant of the gradient
+        # is normalized by ADAM around 1.
+        # Then it is suited to have parameters of order one.
+        # Therefore the scaling, needed for the proper forward propagation, is done "outside" of the parameters 
+        self.scaling = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 3.) / (self.b_in ** 3.))
 
     def forward(self, x): #pylint: disable=W
         '''
@@ -45,7 +43,7 @@ class SO3Convolution(Module):
         assert x.size(4) == 2 * self.b_in
 
         x = SO3_fft_real(b_out=self.b_out)(x) # [l * m * n, batch, feature_in, complex]
-        y = so3_local_ft(self.kernel, self.b_out, self.grid) # [feature_in, feature_out, l * m * n, complex]
+        y = so3_local_ft(self.kernel * self.scaling, self.b_out, self.grid) # [feature_in, feature_out, l * m * n, complex]
         y = y.transpose(0, 2) # [l * m * n, feature_out, feature_in, complex]
         y = y.transpose(1, 2) # [l * m * n, feature_in, feature_out, complex]
         y = y.contiguous()

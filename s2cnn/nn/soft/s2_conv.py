@@ -24,16 +24,9 @@ class S2Convolution(Module):
         self.b_in = b_in
         self.b_out = b_out
         self.grid = grid
-        self.kernel = Parameter(torch.Tensor(nfeature_in, nfeature_out, len(grid)))
-        self.bias = Parameter(torch.Tensor(1, nfeature_out, 1, 1, 1))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        # stdv = 1 / len(self.grid)**0.5 / self.nfeature_in**0.5 / self.b_out**2 * self.b_in
-        stdv = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 4.) / (self.b_in ** 2.))
-
-        self.kernel.data.normal_(0, stdv)
-        self.bias.data[:] = 0
+        self.kernel = Parameter(torch.randn(nfeature_in, nfeature_out, len(grid)))
+        self.scaling = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 4.) / (self.b_in ** 2.))
+        self.bias = Parameter(torch.zeros(1, nfeature_out, 1, 1, 1))
 
     def forward(self, x): #pylint: disable=W
         '''
@@ -44,7 +37,7 @@ class S2Convolution(Module):
         assert x.size(2) == 2 * self.b_in
         assert x.size(3) == 2 * self.b_in
         x = S2_fft_real(b_out=self.b_out)(x) # [l * m, batch, feature_in, complex]
-        y = s2_local_ft(self.kernel, self.b_out, self.grid) # [feature_in, feature_out, l * m, complex]
+        y = s2_local_ft(self.kernel * self.scaling, self.b_out, self.grid) # [feature_in, feature_out, l * m, complex]
         y = y.transpose(0, 2) # [l * m, feature_out, feature_in, complex]
         y = y.transpose(1, 2) # [l * m, feature_in, feature_out, complex]
         y = y.contiguous()
