@@ -140,7 +140,6 @@ def __setup_wigner(b, nl, weighted):
     dss = np.concatenate(dss) # [beta, l * m]
     return dss
 
-@lru_cache(maxsize=32)
 def _setup_fft_plan(b, nbatch):
     from s2cnn.ops.gpu.torchcufft import Plan1d_c2c
 
