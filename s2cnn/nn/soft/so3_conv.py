@@ -23,13 +23,14 @@ class SO3Convolution(Module):
         self.b_in = b_in
         self.b_out = b_out
         self.grid = grid
-        self.kernel = Parameter(torch.randn(nfeature_in, nfeature_out, len(grid)))
+        self.kernel = Parameter(torch.zeros(nfeature_in, nfeature_out, len(grid)))
+        self.kernel.data.uniform_(-1, 1)
         self.bias = Parameter(torch.zeros(1, nfeature_out, 1, 1, 1))
 
         # When useing ADAM optimizer, the variance of each componant of the gradient
         # is normalized by ADAM around 1.
         # Then it is suited to have parameters of order one.
-        # Therefore the scaling, needed for the proper forward propagation, is done "outside" of the parameters 
+        # Therefore the scaling, needed for the proper forward propagation, is done "outside" of the parameters
         self.scaling = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 3.) / (self.b_in ** 3.))
 
     def forward(self, x): #pylint: disable=W
