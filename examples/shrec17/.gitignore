@@ -1,1 +1,9 @@
 data
+evaluator
+*.ipynb
+*.zip
+*.pkl
+test_perturbed
+val_perturbed
+test_normal
+val_normal

@@ -10,6 +10,8 @@ from s2cnn.nn.soft.so3_conv import SO3Convolution
 
 import time
 
+from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
+
 
 class Model(torch.nn.Module):
     def __init__(self, nclasses):
@@ -58,8 +60,6 @@ class Model(torch.nn.Module):
 
 
 def main():
-    from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
-
     torch.backends.cudnn.benchmark = True
 
     # Increasing `repeat` will generate more cached files
@@ -79,7 +79,7 @@ def main():
                    '04401088', '04460130', '04468005', '04530566', '04554684']
         return classes.index(x[0])
 
-    train_set = Shrec17("data", download=True, train=True, transform=transform, target_transform=target_transform)
+    train_set = Shrec17("data", "train", perturbed=True, download=True, transform=transform, target_transform=target_transform)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=16, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
 
@@ -96,9 +96,10 @@ def main():
         data, target = data.cuda(), target.cuda()
         data, target = torch.autograd.Variable(data), torch.autograd.Variable(target)
 
-        optimizer.zero_grad()
         prediction = model(data)
         loss = F.nll_loss(prediction, target)
+
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
@@ -106,7 +107,7 @@ def main():
 
     def get_learning_rate(epoch):
         limits = [30, 50, 100]
-        lrs = [0.5, 0.2, 0.05, 0.01]
+        lrs = [0.5, 0.05, 0.005, 0.0005]
         assert len(lrs) == len(limits) + 1
         for lim, lr in zip(limits, lrs):
             if epoch < lim:

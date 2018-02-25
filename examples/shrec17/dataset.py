@@ -110,9 +110,9 @@ class ToMesh:
 
     def __call__(self, path):
         mesh = trimesh.load_mesh(path)
+        mesh.remove_degenerate_faces()
         mesh.fix_normals()
         mesh.fill_holes()
-        mesh.remove_degenerate_faces()
         mesh.remove_duplicate_faces()
         mesh.remove_infinite_values()
         mesh.remove_unreferenced_vertices()
@@ -204,7 +204,11 @@ class CacheNPY:
             except OSError: exists[i] = False
 
         print("transform...", end="\r")
-        img = self.transform(file_path)
+        try:
+            img = self.transform(file_path)
+        except:
+            print(file_path)
+            raise
         np.save(npy_path.format(exists.index(False)), img)
 
         return img
@@ -218,47 +222,52 @@ class Shrec17(torch.utils.data.Dataset):
     Download SHREC17 and output valid obj files content
     '''
 
-    url_train = 'http://3dvision.princeton.edu/ms/shrec17-data/train_perturbed.zip'
-    url_train_label = 'http://3dvision.princeton.edu/ms/shrec17-data/train.csv'
+    url_data = 'http://3dvision.princeton.edu/ms/shrec17-data/{}.zip'
+    url_label = 'http://3dvision.princeton.edu/ms/shrec17-data/{}.csv'
 
-    url_val = 'http://3dvision.princeton.edu/ms/shrec17-data/val_perturbed.zip'
-    url_val_label = 'http://3dvision.princeton.edu/ms/shrec17-data/val.csv'
-
-    url_test = 'http://3dvision.princeton.edu/ms/shrec17-data/test_perturbed.zip'
-
-    def __init__(self, root, train=True, download=False, transform=None, target_transform=None):
+    def __init__(self, root, dataset, perturbed=True, download=False, transform=None, target_transform=None):
         self.root = os.path.expanduser(root)
 
-        self.dir = os.path.join(self.root, 'train_perturbed' if train else 'val_perturbed')
+        if not dataset in ["train", "test", "val"]:
+            raise ValueError("Invalid dataset")
+
+        self.dir = os.path.join(self.root, dataset + ("_perturbed" if perturbed else ""))
         self.transform = transform
         self.target_transform = target_transform
 
         if download:
-            self.download(train)
+            self.download(dataset, perturbed)
 
         if not self._check_exists():
             raise RuntimeError('Dataset not found.' +
                                ' You can use download=True to download it')
 
         self.files = sorted(glob.glob(os.path.join(self.dir, '*.obj')))
-        with open(os.path.join(self.root, 'train.csv' if train else 'val.csv'), 'rt') as f:
-            reader = csv.reader(f)
-            self.labels = {}
-            for row in [x for x in reader][1:]:
-                self.labels[row[0]] = (row[1], row[2])
+        if dataset != "test":
+            with open(os.path.join(self.root, dataset + ".csv"), 'rt') as f:
+                reader = csv.reader(f)
+                self.labels = {}
+                for row in [x for x in reader][1:]:
+                    self.labels[row[0]] = (row[1], row[2])
+        else:
+            self.labels = None
 
     def __getitem__(self, index):
-        img = self.files[index]
-        i = os.path.splitext(os.path.basename(img))[0]
-        target = self.labels[i]
+        img = f = self.files[index]
 
         if self.transform is not None:
             img = self.transform(img)
 
-        if self.target_transform is not None:
-            target = self.target_transform(target)
+        if self.labels is not None:
+            i = os.path.splitext(os.path.basename(f))[0]
+            target = self.labels[i]
 
-        return img, target
+            if self.target_transform is not None:
+                target = self.target_transform(target)
+
+            return img, target
+        else:
+            return img
 
     def __len__(self):
         return len(self.files)
@@ -320,7 +329,7 @@ class Shrec17(torch.utils.data.Dataset):
                         x.write(yy)
             print("{}/{}  {} fixed    ".format(i + 1, len(files), c), end="\r")
 
-    def download(self, train):
+    def download(self, dataset, perturbed):
 
         if self._check_exists():
             return
@@ -334,12 +343,13 @@ class Shrec17(torch.utils.data.Dataset):
             else:
                 raise
 
-        url = self.url_train if train else self.url_val
+        url = self.url_data.format(dataset + ("_perturbed" if perturbed else ""))
         file_path = self._download(url)
         self._unzip(file_path)
         self._fix()
 
-        url = self.url_train_label if train else self.url_val_label
-        self._download(url)
+        if dataset != "test":
+            url = self.url_label.format(dataset)
+            self._download(url)
 
         print('Done!')
