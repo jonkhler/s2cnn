@@ -3,67 +3,37 @@ import torch
 import torch.nn.functional as F
 import torchvision
 
-from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
-from s2cnn.nn.soft.s2_conv import S2Convolution
-from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
-from s2cnn.nn.soft.so3_conv import SO3Convolution
-
+import os
+import shutil
 import time
+import logging
+import copy
 
 from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
 
-
-class Model(torch.nn.Module):
-    def __init__(self, nclasses):
-        super().__init__()
-
-        self.features = [6,  20, 60, 100, nclasses]
-        self.bandwidths = [64, 20, 10, 7]
-
-        assert len(self.bandwidths) == len(self.features) - 1
-
-        sequence = []
-
-        # S2 layer
-        grid = s2_equatorial_grid(max_beta=0, n_alpha=2 * self.bandwidths[0], n_beta=1)
-        sequence.append(S2Convolution(self.features[0], self.features[1], self.bandwidths[0], self.bandwidths[1], grid))
-
-        # SO3 layers
-        for l in range(1, len(self.features) - 2):
-            nfeature_in = self.features[l]
-            nfeature_out = self.features[l + 1]
-            b_in = self.bandwidths[l]
-            b_out = self.bandwidths[l + 1]
-
-            sequence.append(torch.nn.BatchNorm3d(nfeature_in, affine=True))
-            sequence.append(torch.nn.ReLU())
-            grid = so3_equatorial_grid(max_beta=0, max_gamma=0, n_alpha=2 * b_in, n_beta=1, n_gamma=1)
-            sequence.append(SO3Convolution(nfeature_in, nfeature_out, b_in, b_out, grid))
-
-        sequence.append(torch.nn.BatchNorm3d(self.features[-2], affine=True))
-        sequence.append(torch.nn.ReLU())
-
-        self.sequential = torch.nn.Sequential(*sequence)
-
-        # Output layer
-        output_features = self.features[-2]
-        self.bn_out2 = torch.nn.BatchNorm1d(output_features, affine=False)
-        self.out_layer = torch.nn.Linear(output_features, self.features[-1])
-
-    def forward(self, x):  # pylint: disable=W0221
-        x = self.sequential(x)  # [batch, feature, beta, alpha, gamma]
-        x = x.view(x.size(0), x.size(1), -1).max(-1)[0]  # [batch, feature]
-
-        x = self.bn_out2(x.contiguous())
-        x = self.out_layer(x)
-        return F.log_softmax(x, dim=1)
+from model import Model
 
 
-def main():
+def main(log_dir, augmentation, dataset, batch_size, num_workers):
+    arguments = copy.deepcopy(locals())
+
+    os.mkdir(log_dir)
+    shutil.copy2(__file__, os.path.join(log_dir, "script.py"))
+
+    logger = logging.getLogger("train")
+    logger.setLevel(logging.DEBUG)
+    logger.handlers = []
+    ch = logging.StreamHandler()
+    logger.addHandler(ch)
+    fh = logging.FileHandler(os.path.join(log_dir, "log.txt"))
+    logger.addHandler(fh)
+
+    logger.info("%s", repr(arguments))
+
     torch.backends.cudnn.benchmark = True
 
     # Increasing `repeat` will generate more cached files
-    transform = CacheNPY(prefix="b64_", repeat=2, transform=torchvision.transforms.Compose(
+    transform = CacheNPY(prefix="b64_", repeat=augmentation, transform=torchvision.transforms.Compose(
         [
             ToMesh(random_rotations=True, random_translation=0.1),
             ProjectOnSphere(bandwidth=64)
@@ -79,15 +49,16 @@ def main():
                    '04401088', '04460130', '04468005', '04530566', '04554684']
         return classes.index(x[0])
 
-    train_set = Shrec17("data", "train", perturbed=True, download=True, transform=transform, target_transform=target_transform)
+    train_set = Shrec17("data", dataset, perturbed=True, download=True, transform=transform, target_transform=target_transform)
 
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=16, shuffle=True, num_workers=4, pin_memory=True, drop_last=True)
+    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True, drop_last=True)
 
     model = Model(55)
+    model.load_state_dict(torch.load("state.pkl", map_location="cpu"))
     model.cuda()
 
-    print("{} paramerters in total".format(sum(x.numel() for x in model.parameters())))
-    print("{} paramerters in the last layer".format(sum(x.numel() for x in model.out_layer.parameters())))
+    logger.info("{} paramerters in total".format(sum(x.numel() for x in model.parameters())))
+    logger.info("{} paramerters in the last layer".format(sum(x.numel() for x in model.out_layer.parameters())))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=0, momentum=0.9)
 
@@ -106,8 +77,8 @@ def main():
         return loss.data[0]
 
     def get_learning_rate(epoch):
-        limits = [30, 50, 100]
-        lrs = [0.5, 0.05, 0.005, 0.0005]
+        limits = [100, 200]
+        lrs = [0.5, 0.05, 0.005]
         assert len(lrs) == len(limits) + 1
         for lim, lr in zip(limits, lrs):
             if epoch < lim:
@@ -117,6 +88,7 @@ def main():
     for epoch in range(300):
 
         lr = get_learning_rate(epoch)
+        logger.info("learning rate = {} and batch size = {}".format(lr, train_loader.batch_size))
         for p in optimizer.param_groups:
             p['lr'] = lr
 
@@ -127,11 +99,24 @@ def main():
 
             total_loss += loss
 
-            print("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} time={:.2}".format(
+            logger.info("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} time={:.2}".format(
                 epoch, batch_idx, len(train_loader), loss, total_loss / (batch_idx + 1), time.perf_counter() - time_start))
 
-        torch.save(model.state_dict(), "state.pkl")
+        torch.save(model.state_dict(), os.path.join(log_dir, "state.pkl"))
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--log_dir", type=str, required=True)
+    parser.add_argument("--augmentation", type=int, default=1,
+                        help="Generate multiple image with random rotations and translations (recommanded = 3)")
+    parser.add_argument("--dataset", choices={"test", "val", "train"}, default="train")
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--num_workers", type=int, default=1)
+
+    args = parser.parse_args()
+
+    main(**args.__dict__)

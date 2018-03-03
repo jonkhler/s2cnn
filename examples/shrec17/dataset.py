@@ -186,10 +186,19 @@ class ProjectOnSphere:
 
 
 class CacheNPY:
-    def __init__(self, prefix, repeat, transform):
+    def __init__(self, prefix, repeat, transform, pick_randomly=True):
         self.transform = transform
         self.prefix = prefix
         self.repeat = repeat
+        self.pick_randomly = pick_randomly
+
+    def check_trans(self, file_path):
+        print("transform {}...".format(file_path))
+        try:
+            return self.transform(file_path)
+        except:
+            print("Exception during transform of {}".format(file_path))
+            raise
 
     def __call__(self, file_path):
         head, tail = os.path.split(file_path)
@@ -198,20 +207,27 @@ class CacheNPY:
 
         exists = [os.path.exists(npy_path.format(i)) for i in range(self.repeat)]
 
-        if all(exists):
+        if self.pick_randomly and all(exists):
             i = np.random.randint(self.repeat)
             try: return np.load(npy_path.format(i))
             except OSError: exists[i] = False
 
-        print("transform...", end="\r")
-        try:
-            img = self.transform(file_path)
-        except:
-            print(file_path)
-            raise
-        np.save(npy_path.format(exists.index(False)), img)
+        if self.pick_randomly:
+            img = self.check_trans(file_path)
+            np.save(npy_path.format(exists.index(False)), img)
 
-        return img
+            return img
+
+        output = []
+        for i in range(self.repeat):
+            try:
+                img = np.load(npy_path.format(i))
+            except (OSError, FileNotFoundError):
+                img = self.check_trans(file_path)
+                np.save(npy_path.format(i), img)
+            output.append(img)
+
+        return output
 
     def __repr__(self):
         return self.__class__.__name__ + '(prefix={0}, transform={1})'.format(self.prefix, self.transform)

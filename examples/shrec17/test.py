@@ -1,9 +1,10 @@
+# pylint: disable=E1101,R,C
 import os
 import numpy as np
 import shutil
 import requests
 import zipfile
-from train import Model
+from model import Model
 from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
 from subprocess import check_output
 import torch
@@ -18,33 +19,33 @@ class KeepName:
         return file_name, self.transform(file_name)
 
 
-def main():
-    print(check_output(["nodejs", "--version"]))
+def main(log_dir, augmentation, dataset, batch_size, num_workers):
+    print(check_output(["nodejs", "--version"]).decode("utf-8"))
 
     torch.backends.cudnn.benchmark = True
 
     # Increasing `repeat` will generate more cached files
-    transform = CacheNPY(prefix="b64_", repeat=1, transform=torchvision.transforms.Compose(
-        [
-            ToMesh(random_rotations=True, random_translation=0.1),
-            ProjectOnSphere(bandwidth=64)
-        ]
-    ))
+    transform = torchvision.transforms.Compose([
+        CacheNPY(prefix="b64_", repeat=augmentation, pick_randomly=False, transform=torchvision.transforms.Compose(
+            [
+                ToMesh(random_rotations=True, random_translation=0.1),
+                ProjectOnSphere(bandwidth=64)
+            ]
+        )),
+        lambda xs: torch.stack([torch.FloatTensor(x) for x in xs])
+    ])
     transform = KeepName(transform)
 
-    resdir = "test_perturbed"
-    dataset, perturbed = resdir.split("_")
-    perturbed = (perturbed == "perturbed")
+    test_set = Shrec17("data", dataset, perturbed=True, download=True, transform=transform)
 
-    test_set = Shrec17("data", dataset, perturbed=perturbed, download=True, transform=transform)
-
-    loader = torch.utils.data.DataLoader(test_set, batch_size=16, shuffle=False, num_workers=4, pin_memory=True, drop_last=False)
+    loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, drop_last=False)
 
     model = Model(55)
     model.cuda()
 
-    model.load_state_dict(torch.load("state.pkl"))
+    model.load_state_dict(torch.load(os.path.join(log_dir, "state.pkl")))
 
+    resdir = os.path.join(log_dir, dataset + "_perturbed")
     if os.path.isdir(resdir):
         shutil.rmtree(resdir)
     os.mkdir(resdir)
@@ -59,11 +60,16 @@ def main():
             data = data[0]
 
         file_names, data = data
+        batch_size, rep = data.size()[:2]
+        data = data.view(-1, *data.size()[2:])
 
         data = data.cuda()
         data = torch.autograd.Variable(data, volatile=True)
+        pred = model(data).data
+        pred = pred.view(batch_size, rep, -1)
+        pred = pred.sum(1)
 
-        predictions.append(model(data).data.cpu().numpy())
+        predictions.append(pred.cpu().numpy())
         ids.extend([x.split("/")[-1].split(".")[0] for x in file_names])
 
         print("[{}/{}]      ".format(batch_idx, len(loader)))
@@ -76,7 +82,8 @@ def main():
     predictions_class = np.argmax(predictions, axis=1)
 
     for i in range(len(ids)):
-        print("{}/{}    ".format(i, len(ids)), end="\r")
+        if i % 100 == 0:
+            print("{}/{}    ".format(i, len(ids)), end="\r")
         idfile = os.path.join(resdir, ids[i])
 
         retrieved = [(softmax[j, predictions_class[j]], ids[j]) for j in range(len(ids)) if predictions_class[j] == predictions_class[i]]
@@ -101,8 +108,21 @@ def main():
     zip_ref.extractall(".")
     zip_ref.close()
 
-    print(check_output(["nodejs", "evaluate.js", "../"], cwd="evaluator"))
+    print(check_output(["nodejs", "evaluate.js", os.path.join("..", log_dir) + "/"], cwd="evaluator").decode("utf-8"))
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--log_dir", type=str, required=True)
+    parser.add_argument("--augmentation", type=int, default=1,
+                        help="Generate multiple image with random rotations and translations (recommanded = 3)")
+    parser.add_argument("--dataset", choices={"test", "val", "train"}, default="val")
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--num_workers", type=int, default=1)
+
+    args = parser.parse_args()
+
+    main(**args.__dict__)
