@@ -1,4 +1,4 @@
-# pylint: disable=E1101,R,C
+# pylint: disable=E1101,R,C,W1202
 import torch
 import torch.nn.functional as F
 import torchvision
@@ -8,17 +8,18 @@ import shutil
 import time
 import logging
 import copy
+import types
+import importlib.machinery
 
 from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
 
-from model import Model
 
-
-def main(log_dir, augmentation, dataset, batch_size, num_workers):
+def main(log_dir, model_path, augmentation, dataset, batch_size, num_workers):
     arguments = copy.deepcopy(locals())
 
     os.mkdir(log_dir)
     shutil.copy2(__file__, os.path.join(log_dir, "script.py"))
+    shutil.copy2(model_path, os.path.join(log_dir, "model.py"))
 
     logger = logging.getLogger("train")
     logger.setLevel(logging.DEBUG)
@@ -53,8 +54,11 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True, drop_last=True)
 
-    model = Model(55)
-    model.load_state_dict(torch.load("state.pkl", map_location="cpu"))
+    loader = importlib.machinery.SourceFileLoader('model', os.path.join(log_dir, "model.py"))
+    mod = types.ModuleType(loader.name)
+    loader.exec_module(mod)
+
+    model = mod.Model(55)
     model.cuda()
 
     logger.info("{} paramerters in total".format(sum(x.numel() for x in model.parameters())))
@@ -111,6 +115,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--log_dir", type=str, required=True)
+    parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--augmentation", type=int, default=1,
                         help="Generate multiple image with random rotations and translations (recommanded = 3)")
     parser.add_argument("--dataset", choices={"test", "val", "train"}, default="train")

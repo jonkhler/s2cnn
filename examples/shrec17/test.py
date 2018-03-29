@@ -4,11 +4,12 @@ import numpy as np
 import shutil
 import requests
 import zipfile
-from model import Model
 from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
 from subprocess import check_output
 import torch
 import torchvision
+import types
+import importlib.machinery
 
 
 class KeepName:
@@ -38,9 +39,11 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
 
     test_set = Shrec17("data", dataset, perturbed=True, download=True, transform=transform)
 
-    loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, drop_last=False)
+    loader = importlib.machinery.SourceFileLoader('model', os.path.join(log_dir, "model.py"))
+    mod = types.ModuleType(loader.name)
+    loader.exec_module(mod)
 
-    model = Model(55)
+    model = mod.Model(55)
     model.cuda()
 
     model.load_state_dict(torch.load(os.path.join(log_dir, "state.pkl")))
@@ -52,6 +55,8 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
 
     predictions = []
     ids = []
+
+    loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True, drop_last=False)
 
     for batch_idx, data in enumerate(loader):
         model.eval()
@@ -76,9 +81,6 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
 
     predictions = np.concatenate(predictions)
 
-    ex = np.exp(predictions - np.max(predictions, axis=1, keepdims=True))
-    softmax = ex / np.sum(ex, axis=1, keepdims=True)
-
     predictions_class = np.argmax(predictions, axis=1)
 
     for i in range(len(ids)):
@@ -86,10 +88,9 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
             print("{}/{}    ".format(i, len(ids)), end="\r")
         idfile = os.path.join(resdir, ids[i])
 
-        retrieved = [(softmax[j, predictions_class[j]], ids[j]) for j in range(len(ids)) if predictions_class[j] == predictions_class[i]]
+        retrieved = [(predictions[j, predictions_class[j]], ids[j]) for j in range(len(ids)) if predictions_class[j] == predictions_class[i]]
         retrieved = sorted(retrieved, reverse=True)
-        threshold = 0
-        retrieved = [i for prob, i in retrieved if prob > threshold]
+        retrieved = [i for _, i in retrieved]
 
         with open(idfile, "w") as f:
             f.write("\n".join(retrieved))
@@ -109,7 +110,7 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
     zip_ref.close()
 
     print(check_output(["nodejs", "evaluate.js", os.path.join("..", log_dir) + "/"], cwd="evaluator").decode("utf-8"))
-
+    shutil.copy2(os.path.join("evaluator", log_dir + ".summary.csv"), log_dir)
 
 if __name__ == "__main__":
     import argparse
@@ -118,7 +119,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--log_dir", type=str, required=True)
     parser.add_argument("--augmentation", type=int, default=1,
-                        help="Generate multiple image with random rotations and translations (recommanded = 3)")
+                        help="Generate multiple image with random rotations and translations (recommanded = 4)")
     parser.add_argument("--dataset", choices={"test", "val", "train"}, default="val")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=1)

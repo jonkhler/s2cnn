@@ -11,8 +11,8 @@ class Model(nn.Module):
     def __init__(self, nclasses):
         super().__init__()
 
-        self.features = [6,  20, 60, 100, nclasses]
-        self.bandwidths = [64, 20, 10, 7]
+        self.features = [6,  50, 70, 350, nclasses]
+        self.bandwidths = [64, 32, 22, 7]
 
         assert len(self.bandwidths) == len(self.features) - 1
 
