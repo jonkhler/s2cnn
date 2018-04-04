@@ -14,7 +14,7 @@ import importlib.machinery
 from dataset import Shrec17, CacheNPY, ToMesh, ProjectOnSphere
 
 
-def main(log_dir, model_path, augmentation, dataset, batch_size, num_workers):
+def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, num_workers):
     arguments = copy.deepcopy(locals())
 
     os.mkdir(log_dir)
@@ -78,16 +78,18 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, num_workers):
         loss.backward()
         optimizer.step()
 
-        return loss.data[0]
+        correct = prediction.data.max(1)[1].eq(target.data).long().cpu().sum()
+
+        return loss.data[0], correct
 
     def get_learning_rate(epoch):
         limits = [100, 200]
-        lrs = [0.5, 0.05, 0.005]
+        lrs = [1, 0.1, 0.01]
         assert len(lrs) == len(limits) + 1
         for lim, lr in zip(limits, lrs):
             if epoch < lim:
                 return lr
-        return lrs[-1]
+        return lrs[-1] * learning_rate
 
     for epoch in range(300):
 
@@ -97,14 +99,19 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, num_workers):
             p['lr'] = lr
 
         total_loss = 0
+        total_correct = 0
         for batch_idx, (data, target) in enumerate(train_loader):
             time_start = time.perf_counter()
-            loss = train_step(data, target)
+            loss, correct = train_step(data, target)
 
             total_loss += loss
+            total_correct += correct
 
-            logger.info("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} time={:.2}".format(
-                epoch, batch_idx, len(train_loader), loss, total_loss / (batch_idx + 1), time.perf_counter() - time_start))
+            logger.info("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} ACC={:.2} <ACC>={:.2} time={:.2}".format(
+                epoch, batch_idx, len(train_loader),
+                loss, total_loss / (batch_idx + 1),
+                correct / len(data), total_correct / len(data) / (batch_idx + 1),
+                time.perf_counter() - time_start))
 
         torch.save(model.state_dict(), os.path.join(log_dir, "state.pkl"))
 
@@ -117,10 +124,11 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, required=True)
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--augmentation", type=int, default=1,
-                        help="Generate multiple image with random rotations and translations (recommanded = 3)")
+                        help="Generate multiple image with random rotations and translations (recommanded = 4)")
     parser.add_argument("--dataset", choices={"test", "val", "train"}, default="train")
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--learning_rate", type=float, default=0.5)
 
     args = parser.parse_args()
 

@@ -110,7 +110,7 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
     zip_ref.close()
 
     print(check_output(["nodejs", "evaluate.js", os.path.join("..", log_dir) + "/"], cwd="evaluator").decode("utf-8"))
-    shutil.copy2(os.path.join("evaluator", log_dir + ".summary.csv"), log_dir)
+    shutil.copy2(os.path.join("evaluator", log_dir + ".summary.csv"), os.path.join(log_dir, "summary.csv"))
 
 if __name__ == "__main__":
     import argparse

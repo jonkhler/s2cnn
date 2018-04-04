@@ -11,8 +11,8 @@ class Model(nn.Module):
     def __init__(self, nclasses):
         super().__init__()
 
-        self.features = [6,  50, 70, 350, nclasses]
-        self.bandwidths = [64, 32, 22, 7]
+        self.features = [6,  100, 100, nclasses]
+        self.bandwidths = [64, 16, 10]
 
         assert len(self.bandwidths) == len(self.features) - 1
 
@@ -41,13 +41,11 @@ class Model(nn.Module):
 
         # Output layer
         output_features = self.features[-2]
-        self.bn_out2 = nn.BatchNorm1d(output_features, affine=False)
         self.out_layer = nn.Linear(output_features, self.features[-1])
 
     def forward(self, x):  # pylint: disable=W0221
         x = self.sequential(x)  # [batch, feature, beta, alpha, gamma]
-        x = x.view(x.size(0), x.size(1), -1).max(-1)[0]  # [batch, feature]
+        x = x.view(x.size(0), x.size(1), -1).mean(-1)  # [batch, feature]
 
-        x = self.bn_out2(x.contiguous())
         x = self.out_layer(x)
         return F.log_softmax(x, dim=1)
