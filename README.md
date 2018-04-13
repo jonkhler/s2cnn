@@ -25,7 +25,7 @@ $ python setup.py install
 * [__examples__](examples): Example code for using the library within a PyTorch project
 
 ## Usage
-Please have a look into the [examples](s2cnn/examples).
+Please have a look into the [examples](examples).
 
 Please cite [1] in your work when using this library in your experiments.
 
