@@ -41,9 +41,11 @@ MIT
 [1] Taco S. Cohen, Mario Geiger, Jonas Köhler, Max Welling,
 [Spherical CNNs](https://arxiv.org/abs/1801.10130).
 International Conference on Learning Representations (ICLR), 2018.
+
 [2] Taco S. Cohen, Mario Geiger, Jonas Köhler, Max Welling,
 [Convolutional Networks for Spherical Signals](https://arxiv.org/abs/1709.04893).
 ICML Workshop on Principled Approaches to Deep Learning, 2017.
+
 [3] Taco S. Cohen, Mario Geiger, Maurice Weiler,
 [Intertwiners between Induced Representations (with applications to the theory of equivariant neural networks)](https://arxiv.org/abs/1803.10743),
 ArXiv preprint 1803.10743, 2018.
