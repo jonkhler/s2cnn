@@ -6,15 +6,13 @@ from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
 from s2cnn.nn.soft.s2_conv import S2Convolution
 from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
 from s2cnn.nn.soft.so3_conv import SO3Convolution
-from s2cnn.nn.soft.so3_integrate import so3_integrate
-
 
 class Model(nn.Module):
     def __init__(self, nclasses):
         super().__init__()
 
-        self.features = [6,  100, 100, nclasses]
-        self.bandwidths = [64, 16, 10]
+        self.features = [6,  50, 70, 350, nclasses]
+        self.bandwidths = [128, 32, 22, 7]
 
         assert len(self.bandwidths) == len(self.features) - 1
 
@@ -42,12 +40,14 @@ class Model(nn.Module):
         self.sequential = nn.Sequential(*sequence)
 
         # Output layer
-        output_features = self.features[-2]
-        self.out_layer = nn.Linear(output_features, self.features[-1])
+        self.out_layer = nn.Sequential(
+            nn.BatchNorm1d(self.features[-2], affine=False),
+            nn.Linear(self.features[-2], self.features[-1])
+        )
 
     def forward(self, x):  # pylint: disable=W0221
         x = self.sequential(x)  # [batch, feature, beta, alpha, gamma]
-        x = so3_integrate(x)  # [batch, feature]
+        x = x.view(x.size(0), x.size(1), -1).max(-1)[0]  # [batch, feature]
 
         x = self.out_layer(x)
         return F.log_softmax(x, dim=1)

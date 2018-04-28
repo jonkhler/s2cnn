@@ -33,11 +33,25 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
 
     torch.backends.cudnn.benchmark = True
 
+    ## Load the model
+    loader = importlib.machinery.SourceFileLoader('model', os.path.join(log_dir, "model.py"))
+    mod = types.ModuleType(loader.name)
+    loader.exec_module(mod)
+
+    model = mod.Model(55)
+    model.cuda()
+
+    logger.info("{} paramerters in total".format(sum(x.numel() for x in model.parameters())))
+    logger.info("{} paramerters in the last layer".format(sum(x.numel() for x in model.out_layer.parameters())))
+
+    bw = model.bandwidths[0]
+
+    ## Load the dataset
     # Increasing `repeat` will generate more cached files
-    transform = CacheNPY(prefix="b64_", repeat=augmentation, transform=torchvision.transforms.Compose(
+    transform = CacheNPY(prefix="b{}_".format(bw), repeat=augmentation, transform=torchvision.transforms.Compose(
         [
             ToMesh(random_rotations=True, random_translation=0.1),
-            ProjectOnSphere(bandwidth=64)
+            ProjectOnSphere(bandwidth=bw)
         ]
     ))
 
@@ -53,16 +67,6 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
     train_set = Shrec17("data", dataset, perturbed=True, download=True, transform=transform, target_transform=target_transform)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True, drop_last=True)
-
-    loader = importlib.machinery.SourceFileLoader('model', os.path.join(log_dir, "model.py"))
-    mod = types.ModuleType(loader.name)
-    loader.exec_module(mod)
-
-    model = mod.Model(55)
-    model.cuda()
-
-    logger.info("{} paramerters in total".format(sum(x.numel() for x in model.parameters())))
-    logger.info("{} paramerters in the last layer".format(sum(x.numel() for x in model.out_layer.parameters())))
 
     optimizer = torch.optim.SGD(model.parameters(), lr=0, momentum=0.9)
 
@@ -88,7 +92,7 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
         assert len(lrs) == len(limits) + 1
         for lim, lr in zip(limits, lrs):
             if epoch < lim:
-                return lr
+                return lr * learning_rate
         return lrs[-1] * learning_rate
 
     for epoch in range(300):
@@ -124,7 +128,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, required=True)
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--augmentation", type=int, default=1,
-                        help="Generate multiple image with random rotations and translations (recommanded = 4)")
+                        help="Generate multiple image with random rotations and translations")
     parser.add_argument("--dataset", choices={"test", "val", "train"}, default="train")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=1)

@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--log_dir", type=str, required=True)
     parser.add_argument("--augmentation", type=int, default=1,
-                        help="Generate multiple image with random rotations and translations (recommanded = 4)")
+                        help="Generate multiple image with random rotations and translations")
     parser.add_argument("--dataset", choices={"test", "val", "train"}, default="val")
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--num_workers", type=int, default=1)
