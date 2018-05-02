@@ -1,16 +1,12 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 import torch
 import numpy as np
-from torch.autograd import Variable
 from functools import lru_cache
+
 
 def s2_local_ft(x, b, grid):
     # F is the local Fourier matrix, shape (n_spatial, 2 * n_spectral)
-    device = x.get_device() if x.is_cuda else None
-    F = setup_s2_local_ft(b, grid, cuda_device=device)
-
-    if isinstance(x, Variable):
-        F = Variable(F)
+    F = setup_s2_local_ft(b, grid, like=x)
 
     # Get sizes
     sz = x.size()                                 # shape (..., n_spatial)
@@ -31,10 +27,10 @@ def s2_local_ft(x, b, grid):
 
 
 @lru_cache(maxsize=32)
-def setup_s2_local_ft(b, grid, cuda_device=None):
+def setup_s2_local_ft(b, grid, like):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
-    # TODO: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
+    # Note: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
     # This is optional because we can also view the filter coefficients as having absorbed the weights already.
 
     # Sample the Wigner-D functions on the local grid
@@ -43,7 +39,7 @@ def setup_s2_local_ft(b, grid, cuda_device=None):
     F = np.zeros((n_spatial, n_spectral), dtype=complex)
     for i in range(n_spatial):
         Dmats = [(2 * b) * wigner_D_matrix(l, grid[i][0], grid[i][1], 0,
-                                 field='complex', normalization='quantum', order='centered', condon_shortley='cs')
+                                           field='complex', normalization='quantum', order='centered', condon_shortley='cs')
                  .conj()
                  for l in range(b)]
         F[i] = np.hstack([Dmats[l][:, l] for l in range(b)])
@@ -55,10 +51,7 @@ def setup_s2_local_ft(b, grid, cuda_device=None):
     F = F.view('float')
 
     # convert to torch Tensor
-    F = torch.from_numpy(F.astype(np.float32))
-
-    if cuda_device is not None:
-        F = F.cuda(cuda_device)
+    F = like.new_tensor(F.astype(np.float32))
 
     return F
 
@@ -74,7 +67,8 @@ def near_identity_grid(max_beta=np.pi / 8, n_alpha=8, n_beta=3):
     A = A.flatten()
     B = B.flatten()
     grid = np.stack((A, B), axis=1)
-    return tuple(tuple(ab) for ab in grid) # TODO numpy not hashable
+    return tuple(tuple(ab) for ab in grid)
+
 
 def equatorial_grid(max_beta=0, n_alpha=32, n_beta=1):
     '''
@@ -87,4 +81,4 @@ def equatorial_grid(max_beta=0, n_alpha=32, n_beta=1):
     A = A.flatten()
     B = B.flatten()
     grid = np.stack((A, B), axis=1)
-    return tuple(tuple(ab) for ab in grid) # TODO numpy not hashable
+    return tuple(tuple(ab) for ab in grid)

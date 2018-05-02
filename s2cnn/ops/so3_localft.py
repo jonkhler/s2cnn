@@ -1,9 +1,9 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 import torch
 import numpy as np
-from torch.autograd import Variable
 from functools import lru_cache
 import warnings
+
 
 def so3_local_ft(x, b, grid):
     """
@@ -17,10 +17,7 @@ def so3_local_ft(x, b, grid):
      coefficients for a bandwidth-b transform. The last axis stores real and imaginary parts.
     """
     # F is the local Fourier matrix, shape (n_spatial, 2 * n_spectral)
-    device = x.get_device() if x.is_cuda else None
-    F = setup_so3_local_ft(b, grid, cuda_device=device)
-    if isinstance(x, Variable):
-        F = Variable(F)
+    F = setup_so3_local_ft(b, grid, x)
 
     # Get sizes
     sz = x.size()                                  # shape (..., n_spatial)
@@ -42,10 +39,10 @@ def so3_local_ft(x, b, grid):
 
 
 @lru_cache(maxsize=32)
-def setup_so3_local_ft(b, grid, cuda_device=None):
+def setup_so3_local_ft(b, grid, like):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
-    # TODO: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
+    # Note: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
     # This is optional because we can also view the filter coefficients as having absorbed the weights already.
     # The weights depend on the spacing between the point of the grid
     # Only the coefficient sin(beta) can be added without requireing to know the spacings
@@ -68,10 +65,7 @@ def setup_so3_local_ft(b, grid, cuda_device=None):
     F = F.view('float')
 
     # convert to torch Tensor
-    F = torch.from_numpy(F.astype(np.float32))
-
-    if cuda_device is not None:
-        F = F.cuda(cuda_device)
+    F = like.new_tensor(F.astype(np.float32))
 
     return F
 
@@ -93,7 +87,8 @@ def near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n_bet
     grid = np.stack((A, B, C), axis=1)
     if sum(grid[:, 1] == 0) > 1:
         warnings.warn("Gimbal lock: beta take value 0 in the grid")
-    return tuple(tuple(abc) for abc in grid) # TODO numpy not hashable
+    return tuple(tuple(abc) for abc in grid)
+
 
 def equatorial_grid(max_beta=0, max_gamma=np.pi / 8, n_alpha=32, n_beta=1, n_gamma=2):
     '''
@@ -110,4 +105,4 @@ def equatorial_grid(max_beta=0, max_gamma=np.pi / 8, n_alpha=32, n_beta=1, n_gam
     grid = np.stack((A, B, C), axis=1)
     if sum(grid[:, 1] == 0) > 1:
         warnings.warn("Gimbal lock: beta take value 0 in the grid")
-    return tuple(tuple(abc) for abc in grid) # TODO numpy not hashable
+    return tuple(tuple(abc) for abc in grid)

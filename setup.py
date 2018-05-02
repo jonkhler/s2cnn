@@ -2,15 +2,6 @@
 import os
 from setuptools import setup, find_packages
 
-try:
-    import torch
-    if not torch.cuda.is_available():
-        print("torch.cuda.is_available() returned False")
-        exit()
-except ImportError:
-    print("Cannot import torch")
-    exit()
-
 setup(
     name='s2cnn',
     version="1.0.0",

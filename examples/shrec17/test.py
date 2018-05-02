@@ -69,8 +69,8 @@ def main(log_dir, augmentation, dataset, batch_size, num_workers):
         data = data.view(-1, *data.size()[2:])
 
         data = data.cuda()
-        data = torch.autograd.Variable(data, volatile=True)
-        pred = model(data).data
+        with torch.no_grad():
+            pred = model(data).data
         pred = pred.view(batch_size, rep, -1)
         pred = pred.sum(1)
 

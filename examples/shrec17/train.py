@@ -73,7 +73,6 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
     def train_step(data, target):
         model.train()
         data, target = data.cuda(), target.cuda()
-        data, target = torch.autograd.Variable(data), torch.autograd.Variable(target)
 
         prediction = model(data)
         loss = F.nll_loss(prediction, target)
@@ -84,7 +83,7 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
 
         correct = prediction.data.max(1)[1].eq(target.data).long().cpu().sum()
 
-        return loss.data[0], correct
+        return loss.item(), correct.item()
 
     def get_learning_rate(epoch):
         limits = [100, 200]

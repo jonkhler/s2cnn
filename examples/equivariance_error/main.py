@@ -35,7 +35,7 @@ def rot(x, angle):
     return torch.cat([x[:, :, :, n:], x[:, :, :, :n]], dim=3)
 
 # Create random input
-x = torch.autograd.Variable(torch.randn(1, 12, 128, 128), volatile=True).cuda() # [batch, feature, beta, alpha]
+x = torch.randn(1, 12, 128, 128).cuda() # [batch, feature, beta, alpha]
 
 y = phi(x)
 y1 = rot(phi(x), angle=45)
