@@ -23,8 +23,7 @@ class SO3Convolution(Module):
         self.b_in = b_in
         self.b_out = b_out
         self.grid = grid
-        self.kernel = Parameter(torch.zeros(nfeature_in, nfeature_out, len(grid)))
-        self.kernel.data.uniform_(-1, 1)
+        self.kernel = Parameter(torch.empty(nfeature_in, nfeature_out, len(grid)).uniform_(-1, 1))
         self.bias = Parameter(torch.zeros(1, nfeature_out, 1, 1, 1))
 
         # When useing ADAM optimizer, the variance of each componant of the gradient

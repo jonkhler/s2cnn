@@ -11,7 +11,7 @@ def s2_fft(x, for_grad=False, b_out=None):
     :param x: [..., beta, alpha, complex]
     :return:  [l * m, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     b_in = x.size(-2) // 2
     assert x.size(-2) == 2 * b_in
@@ -22,7 +22,6 @@ def s2_fft(x, for_grad=False, b_out=None):
     batch_size = x.size()[:-3]
 
     x = x.view(-1, 2 * b_in, 2 * b_in, 2) # [batch, beta, alpha, complex]
-    x = x.clone()
 
     output = _s2_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out) # [l * m, batch, complex]
     output = output.view(-1, *batch_size, 2) # [l * m, ..., complex] (nspec, ..., 2)
@@ -31,23 +30,19 @@ def s2_fft(x, for_grad=False, b_out=None):
 
 def _s2_fft(x, for_grad, b_in, b_out):
     '''
-    this function performs in-place operations on x
-
     :param x: [batch, beta, alpha, complex] (nbatch, 2 * b_in, 2 * b_in, 2)
     :return: [l * m, batch, complex] (b_out**2, nbatch, 2)
     '''
-    device = x.get_device()
     nspec = b_out**2
     nbatch = x.size(0)
 
-    plan = _setup_fft_plan(b_in, nbatch)
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
     cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch)
 
-    plan(x, x, -1) # [batch, beta, m, complex]
+    x = torch.fft(x, 1)  # [batch, beta, m, complex]
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
-    output = torch.cuda.FloatTensor(nspec, nbatch, 2)
+    output = x.new_empty((nspec, nbatch, 2))
     cuda_kernel(block=(1024, 1, 1),
                 grid=(cuda_utils.get_blocks(nspec * nbatch, 1024), 1, 1),
                 args=[x.data_ptr(), wigner.data_ptr(), output.data_ptr()],
@@ -61,7 +56,7 @@ def s2_ifft(x, for_grad=False, b_out=None):
     '''
     :param x: [l * m, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
     b_in = round(nspec**0.5)
@@ -83,29 +78,27 @@ def _s2_ifft(x, for_grad, b_in, b_out):
     :param x: [l * m, batch, complex] (b_in**2, nbatch, 2)
     :return: [batch, beta, alpha, complex] (nbatch, 2 b_out, 2 * b_out, 2)
     '''
-    device = x.get_device()
     nbatch = x.size(1)
 
-    plan = _setup_fft_plan(b_out, nbatch)
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=device) # [beta, l * m] (2 * b_out - 1, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m] (2 * b_out - 1, nspec)
     cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
-    output = torch.cuda.FloatTensor(nbatch, 2 * b_out, 2 * b_out, 2)
+    output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2))
     cuda_kernel(block=(1024, 1, 1),
                 grid=(cuda_utils.get_blocks(nbatch * (2 * b_out)**2, 1024), 1, 1),
                 args=[x.data_ptr(), wigner.data_ptr(), output.data_ptr()],
                 stream=stream)
     # [batch, beta, m, complex] (nbatch, 2 * b_out, 2 * b_out, 2)
 
-    plan(output, output, 1) # [batch, beta, alpha, complex]
+    output = torch.ifft(output, 1) * output.size(-2)  # [batch, beta, alpha, complex]
 
     return output
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, device):
+def _setup_wigner(b, nl, weighted, like):
     dss = __setup_wigner(b, nl, weighted)
-    dss = torch.FloatTensor(dss).cuda(device) # [beta, l * m]
+    dss = like.new_tensor(dss)  # [beta, l * m]
     return dss
 
 @lru_cache(maxsize=None)
@@ -139,12 +132,6 @@ def __setup_wigner(b, nl, weighted):
 
     dss = np.concatenate(dss) # [beta, l * m]
     return dss
-
-def _setup_fft_plan(b, nbatch):
-    from s2cnn.ops.gpu.torchcufft import Plan1d_c2c
-
-    plan = Plan1d_c2c(N=2 * b, batch=nbatch * 2 * b)
-    return plan
 
 @lru_cache(maxsize=32)
 def _setup_s2fft_cuda_kernel(b, nspec, nbatch):

@@ -1,3 +1,4 @@
+# pylint: disable=R,C,E1101
 from collections import namedtuple
 from cupy.cuda import function # pylint: disable=E0401
 from pynvrtc.compiler import Program # pylint: disable=E0401

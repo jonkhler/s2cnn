@@ -11,7 +11,7 @@ def so3_fft(x, for_grad=False, b_out=None):
     :param x: [..., beta, alpha, gamma, complex]
     :return: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2, x.size()
     b_in = x.size(-2) // 2
     assert x.size(-2) == 2 * b_in
@@ -23,7 +23,6 @@ def so3_fft(x, for_grad=False, b_out=None):
     batch_size = x.size()[:-4]
 
     x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in, 2) # [batch, beta, alpha, gamma, complex]
-    x = x.clone()
 
     output = _so3_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
     output = output.view(-1, *batch_size, 2) # [l * m * n, ..., complex]
@@ -31,22 +30,18 @@ def so3_fft(x, for_grad=False, b_out=None):
 
 def _so3_fft(x, for_grad, b_in, b_out):
     '''
-    this function performs in-place operations on x
-
     :param x: [batch, beta, alpha, gamma, complex] (nbatch, 2 b_in, 2 b_in, 2 b_in, 2)
     :return: [l * m * n, batch, complex] (b_out (4 b_out**2 - 1) // 3, nbatch, 2)
     '''
-    device = x.get_device()
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    plan = _setup_fft_plan(b_in, nbatch)
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False)
 
-    plan(x, x, -1) # [batch, beta, m, n, complex]
+    x = torch.fft(x, 2)  # [batch, beta, m, n, complex]
 
-    output = torch.cuda.FloatTensor(nspec, nbatch, 2)
+    output = x.new_empty((nspec, nbatch, 2))
     cuda_kernel(x, wigner, output) # [l * m * n, batch, complex]
 
     return output
@@ -57,7 +52,7 @@ def so3_rfft(x, for_grad=False, b_out=None):
     :param x: [..., beta, alpha, gamma]
     :return: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     b_in = x.size(-1) // 2
     assert x.size(-1) == 2 * b_in
     assert x.size(-2) == 2 * b_in
@@ -78,20 +73,15 @@ def _so3_rfft(x, for_grad, b_in, b_out):
     :param x: [batch, beta, alpha, gamma] (nbatch, 2 b_in, 2 b_in, 2 b_in)
     :return: [l * m * n, batch, complex] (b_out (4 b_out**2 - 1) // 3, nbatch, 2)
     '''
-    device = x.get_device()
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    plan = _setup_rfft_plan(b_in, nbatch)
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True)
 
-    # http://www.fftw.org/fftw3_doc/Multi_002dDimensional-DFTs-of-Real-Data.html
-    y = x.new(nbatch, 2 * b_in, 2 * b_in, b_in + 1, 2)
-    # the sign is implicitly -1
-    plan(x, y) # [batch, beta, m, n, complex]
+    y = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
 
-    output = torch.cuda.FloatTensor(nspec, nbatch, 2)
+    output = x.new_empty((nspec, nbatch, 2))
     cuda_kernel(y, wigner, output) # [l * m * n, batch, complex]
 
     return output
@@ -101,7 +91,7 @@ def so3_ifft(x, for_grad=False, b_out=None):
     '''
     :param x: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
     b_in = round((3/4 * nspec)**(1/3))
@@ -123,17 +113,15 @@ def _so3_ifft(x, for_grad, b_in, b_out):
     :param x: [l * m * n, batch, complex] (b_in (4 b_in**2 - 1) // 3, nbatch, 2)
     :return: [batch, beta, alpha, gamma, complex] (nbatch, 2 b_out, 2 b_out, 2 b_out, 2)
     '''
-    device = x.get_device()
     nbatch = x.size(1)
 
-    plan = _setup_fft_plan(b_out, nbatch)
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=device) # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False)
 
-    output = torch.cuda.FloatTensor(nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2)
+    output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     cuda_kernel(x, wigner, output) # [batch, beta, m, n, complex]
 
-    plan(output, output, 1) # [batch, beta, alpha, gamma, complex]
+    output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     return output
 
 
@@ -141,7 +129,7 @@ def so3_rifft(x, for_grad=False, b_out=None):
     '''
     :param x: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda
+    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
     b_in = round((3/4 * nspec)**(1/3))
@@ -164,25 +152,23 @@ def _so3_rifft(x, for_grad, b_in, b_out):
     :param x: [l * m * n, batch, complex] (b_in (4 b_in**2 - 1) // 3, nbatch, 2)
     :return: [batch, beta, alpha, gamma] (nbatch, 2 b_out, 2 b_out, 2 b_out)
     '''
-    device = x.get_device()
     nbatch = x.size(1)
 
-    plan = _setup_fft_plan(b_out, nbatch)
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=device) # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True)
 
-    output = torch.cuda.FloatTensor(nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2)
+    output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     cuda_kernel(x, wigner, output) # [batch, beta, m, n, complex]
 
-    plan(output, output, 1) # [batch, beta, alpha, gamma, complex]
+    output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     output = output[..., 0] # [batch, beta, alpha, gamma]
     return output
 
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, device):
+def _setup_wigner(b, nl, weighted, like):
     dss = __setup_wigner(b, nl, weighted)
-    dss = torch.FloatTensor(dss).cuda(device) # [beta, l * m * n]
+    dss = like.new_tensor(dss)  # [beta, l * m * n]
     return dss
 
 @lru_cache(maxsize=None)
@@ -217,18 +203,6 @@ def __setup_wigner(b, nl, weighted):
         dss.append(ds)
     dss = np.stack(dss) # [beta, l * m * n]
     return dss
-
-def _setup_fft_plan(b, nbatch):
-    from s2cnn.ops.gpu.torchcufft import Plan2d_c2c
-
-    plan = Plan2d_c2c(N0=2 * b, N1=2 * b, batch=nbatch * 2 * b)
-    return plan
-
-def _setup_rfft_plan(b, nbatch):
-    from s2cnn.ops.gpu.torchcufft import Plan2d_r2c
-
-    plan = Plan2d_r2c(N0=2 * b, N1=2 * b, batch=nbatch * 2 * b)
-    return plan
 
 @lru_cache(maxsize=32)
 def _setup_so3fft_cuda_kernel(b_in, b_out, nbatch, real_input):

@@ -28,14 +28,14 @@ class S2_mm(torch.autograd.Function):
         gradx = grady = None
 
         if self.needs_input_grad[0]:
-            gradx = torch.cuda.FloatTensor(nl**2, nbatch, nfeature_in, 2)
+            gradx = gradz.new_empty((nl**2, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl**2 * nbatch * nfeature_in, 1024), 1, 1),
                               args=[gradz.data_ptr(), y.data_ptr(), gradx.data_ptr()],
                               stream=stream)
 
         if self.needs_input_grad[1]:
-            grady = torch.cuda.FloatTensor(nl**2, nfeature_in, nfeature_out, 2)
+            grady = gradz.new_empty((nl**2, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl**2 * nfeature_in * nfeature_out, 1024), 1, 1),
                               args=[gradz.data_ptr(), x.data_ptr(), grady.data_ptr()],
@@ -50,6 +50,8 @@ def s2_mm(x, y):
     :param y: [l * m,     feature_in, feature_out, complex]
     :return:  [l * m * n, batch,      feature_out, complex]
     '''
+    assert x.is_cuda and x.dtype == torch.float32
+    assert y.is_cuda and y.dtype == torch.float32
     assert y.size(3) == 2
     assert x.size(3) == 2
     nbatch = x.size(1)
@@ -65,7 +67,7 @@ def s2_mm(x, y):
     cuda_kernel = _setup_s2mm_cuda_kernel(nbatch=nbatch, nspec=nspec, nfeature_in=nfeature_in, nfeature_out=nfeature_out)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
-    output = torch.cuda.FloatTensor(nspec, nbatch, nfeature_out, 2)
+    output = x.new_empty((nspec, nbatch, nfeature_out, 2))
     cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                 grid=(cuda_utils.get_blocks(nspec * nbatch * nfeature_out, 1024), 1, 1),
                 args=[x.data_ptr(), y.data_ptr(), output.data_ptr()],

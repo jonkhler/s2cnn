@@ -1,6 +1,5 @@
 #pylint: disable=R,C,E1101
 import torch
-from torch.autograd import Variable
 from functools import lru_cache
 
 def so3_integrate(x):
@@ -12,11 +11,8 @@ def so3_integrate(x):
     assert x.size(-2) == x.size(-3)
 
     b = x.size(-1) // 2
-    device = x.get_device() if x.is_cuda else None
 
-    w = setup_so3_integrate(b, device) # [beta]
-    if isinstance(x, Variable):
-        w = Variable(w)
+    w = setup_so3_integrate(b, x) # [beta]
 
     x = torch.sum(x, dim=-1).squeeze(-1) # [..., beta, alpha]
     x = torch.sum(x, dim=-1).squeeze(-1) # [..., beta]
@@ -29,14 +25,7 @@ def so3_integrate(x):
     return x
 
 @lru_cache(maxsize=32)
-def setup_so3_integrate(b, cuda_device):
+def setup_so3_integrate(b, like):
     import lie_learn.spaces.S3 as S3
 
-    w = S3.quadrature_weights(b) # (2b) [beta]
-
-    w = torch.FloatTensor(w)
-
-    if cuda_device is not None:
-        w = w.cuda(cuda_device)
-
-    return w
+    return like.new_tensor(S3.quadrature_weights(b)) # (2b) [beta]

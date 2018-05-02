@@ -13,15 +13,10 @@ def so3_rotation(x, alpha, beta, gamma):
     b = x.size()[-1] // 2
     x_size = x.size()
 
-    Us = setup_so3_rotation(b, alpha, beta, gamma, x.get_device() if x.is_cuda else None)
-    if isinstance(x, torch.autograd.Variable):
-        Us = [torch.autograd.Variable(i) for i in Us]
+    Us = setup_so3_rotation(b, alpha, beta, gamma, x)
 
     # fourier transform
-    if isinstance(x, torch.autograd.Variable):
-        x = so3_fft.SO3_fft_real()(x) # [l * m * n, ..., complex]
-    else:
-        x = so3_fft.SO3_fft_real().forward(x) # [l * m * n, ..., complex]
+    x = so3_fft.SO3_fft_real()(x) # [l * m * n, ..., complex]
 
     # rotated spectrum
     Fz_list = []
@@ -43,10 +38,7 @@ def so3_rotation(x, alpha, beta, gamma):
         begin += size
 
     Fz = torch.cat(Fz_list, 0) # [l * m * n, batch, complex]
-    if isinstance(x, torch.autograd.Variable):
-        z = so3_fft.SO3_ifft_real()(Fz)
-    else:
-        z = so3_fft.SO3_ifft_real().forward(Fz)
+    z = so3_fft.SO3_ifft_real()(Fz)
 
     z = z.contiguous()
     z = z.view(*x_size)
@@ -54,7 +46,7 @@ def so3_rotation(x, alpha, beta, gamma):
     return z
 
 @lru_cache(maxsize=32)
-def setup_so3_rotation(b, alpha, beta, gamma, cuda_device=None):
+def setup_so3_rotation(b, alpha, beta, gamma, like):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     Us = [wigner_D_matrix(l, alpha, beta, gamma,
@@ -65,9 +57,6 @@ def setup_so3_rotation(b, alpha, beta, gamma, cuda_device=None):
     Us = [Us[l].astype(np.complex64).view(np.float32).reshape((2 * l + 1, 2 * l + 1, 2)) for l in range(b)]
 
     # convert to torch Tensor
-    Us = [torch.from_numpy(U) for U in Us]
-
-    if cuda_device is not None:
-        Us = [U.cuda(cuda_device) for U in Us]
+    Us = [like.new_tensor(U) for U in Us]
 
     return Us

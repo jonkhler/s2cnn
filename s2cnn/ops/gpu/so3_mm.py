@@ -26,12 +26,12 @@ class SO3_mm(torch.autograd.Function):
 
         if self.needs_input_grad[0]:
             gradx_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_in, nk=nfeature_out, trans_y_feature=True)
-            gradx = torch.cuda.FloatTensor(nspec, nbatch, nfeature_in, 2)
+            gradx = gradz.new_empty((nspec, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(gradz, y, gradx)
 
         if self.needs_input_grad[1]:
             grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch, trans_out_feature=True, conj_x=True, trans_x_spec=True, trans_x_feature=True)
-            grady = torch.cuda.FloatTensor(nspec, nfeature_in, nfeature_out, 2)
+            gradx = gradz.new_empty((nspec, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(gradz, x, grady)
 
         return gradx, grady
@@ -43,6 +43,8 @@ def so3_mm(x, y):
     :param y: [l * m * n, feature_in, feature_out, complex]
     :return:  [l * m * n, batch,      feature_out, complex]
     '''
+    assert x.is_cuda and x.dtype == torch.float32
+    assert y.is_cuda and y.dtype == torch.float32
     assert y.size(3) == 2
     assert x.size(3) == 2
     nbatch = x.size(1)
@@ -56,7 +58,7 @@ def so3_mm(x, y):
 
     cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True, trans_y_spec=True)
 
-    output = torch.cuda.FloatTensor(nspec, nbatch, nfeature_out, 2)
+    output = x.new_empty((nspec, nbatch, nfeature_out, 2))
     cuda_kernel(x, y, output) # [l * m * n, batch, feature_out, complex]
 
     return output
