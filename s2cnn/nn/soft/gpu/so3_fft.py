@@ -1,10 +1,11 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 import math
 from functools import lru_cache
 import torch
 import s2cnn.utils.cuda_utils as cuda_utils
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
+
 
 def so3_fft(x, for_grad=False, b_out=None):
     '''
@@ -22,11 +23,12 @@ def so3_fft(x, for_grad=False, b_out=None):
     assert b_out <= b_in
     batch_size = x.size()[:-4]
 
-    x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in, 2) # [batch, beta, alpha, gamma, complex]
+    x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in, 2)  # [batch, beta, alpha, gamma, complex]
 
     output = _so3_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
-    output = output.view(-1, *batch_size, 2) # [l * m * n, ..., complex]
+    output = output.view(-1, *batch_size, 2)  # [l * m * n, ..., complex]
     return output
+
 
 def _so3_fft(x, for_grad, b_in, b_out):
     '''
@@ -36,13 +38,13 @@ def _so3_fft(x, for_grad, b_in, b_out):
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False)
 
     x = torch.fft(x, 2)  # [batch, beta, m, n, complex]
 
     output = x.new_empty((nspec, nbatch, 2))
-    cuda_kernel(x, wigner, output) # [l * m * n, batch, complex]
+    cuda_kernel(x, wigner, output)  # [l * m * n, batch, complex]
 
     return output
 
@@ -62,11 +64,12 @@ def so3_rfft(x, for_grad=False, b_out=None):
     assert b_out <= b_in
     batch_size = x.size()[:-3]
 
-    x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in) # [batch, beta, alpha, gamma]
+    x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in)  # [batch, beta, alpha, gamma]
 
     output = _so3_rfft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
-    output = output.view(-1, *batch_size, 2) # [l * m * n, ..., complex]
+    output = output.view(-1, *batch_size, 2)  # [l * m * n, ..., complex]
     return output
+
 
 def _so3_rfft(x, for_grad, b_in, b_out):
     '''
@@ -76,13 +79,13 @@ def _so3_rfft(x, for_grad, b_in, b_out):
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True)
 
     y = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
 
     output = x.new_empty((nspec, nbatch, 2))
-    cuda_kernel(y, wigner, output) # [l * m * n, batch, complex]
+    cuda_kernel(y, wigner, output)  # [l * m * n, batch, complex]
 
     return output
 
@@ -101,12 +104,13 @@ def so3_ifft(x, for_grad=False, b_out=None):
     assert b_out >= b_in
     batch_size = x.size()[1:-1]
 
-    x = x.view(nspec, -1, 2) # [l * m * n, batch, complex] (nspec, nbatch, 2)
+    x = x.view(nspec, -1, 2)  # [l * m * n, batch, complex] (nspec, nbatch, 2)
 
     output = _so3_ifft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
 
     output = output.view(*batch_size, 2 * b_out, 2 * b_out, 2 * b_out, 2)
     return output
+
 
 def _so3_ifft(x, for_grad, b_in, b_out):
     '''
@@ -115,11 +119,11 @@ def _so3_ifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
-    cuda_kernel(x, wigner, output) # [batch, beta, m, n, complex]
+    cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     return output
@@ -139,13 +143,14 @@ def so3_rifft(x, for_grad=False, b_out=None):
     assert b_out >= b_in
     batch_size = x.size()[1:-1]
 
-    x = x.view(nspec, -1, 2) # [l * m * n, batch, complex] (nspec, nbatch, 2)
+    x = x.view(nspec, -1, 2)  # [l * m * n, batch, complex] (nspec, nbatch, 2)
 
     output = _so3_rifft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
     output = output.contiguous()
 
     output = output.view(*batch_size, 2 * b_out, 2 * b_out, 2 * b_out)
     return output
+
 
 def _so3_rifft(x, for_grad, b_in, b_out):
     '''
@@ -154,22 +159,23 @@ def _so3_rifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
-    cuda_kernel(x, wigner, output) # [batch, beta, m, n, complex]
+    cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
-    output = output[..., 0] # [batch, beta, alpha, gamma]
+    output = output[..., 0]  # [batch, beta, alpha, gamma]
     return output
 
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, like):
+def _setup_wigner(b, nl, weighted, device):
     dss = __setup_wigner(b, nl, weighted)
-    dss = like.new_tensor(dss)  # [beta, l * m * n]
+    dss = torch.tensor(dss, dtype=torch.float32, device=device)  # [beta, l * m * n] # pylint: disable=E1102
     return dss
+
 
 @lru_cache(maxsize=None)
 def __setup_wigner(b, nl, weighted):
@@ -199,10 +205,11 @@ def __setup_wigner(b, nl, weighted):
 
             # d # [m * n]
             ds.append(d)
-        ds = np.concatenate(ds) # [l * m * n]
+        ds = np.concatenate(ds)  # [l * m * n]
         dss.append(ds)
-    dss = np.stack(dss) # [beta, l * m * n]
+    dss = np.stack(dss)  # [beta, l * m * n]
     return dss
+
 
 @lru_cache(maxsize=32)
 def _setup_so3fft_cuda_kernel(b_in, b_out, nbatch, real_input):
@@ -306,6 +313,7 @@ __global__ void main_(const float* in, const float* wig, float* out)
                stream=stream)
     return fun
 
+
 @lru_cache(maxsize=32)
 def _setup_so3ifft_cuda_kernel(b_in, b_out, nbatch, real_output):
     kernel = '''
@@ -393,19 +401,21 @@ __global__ void main_(const float* in, const float* wig, float* out)
                stream=stream)
     return fun
 
+
 class SO3_fft_real(torch.autograd.Function):
     def __init__(self, b_out=None):
         super(SO3_fft_real, self).__init__()
         self.b_in = None
         self.b_out = b_out
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         self.b_in = x.size(-1) // 2
         return so3_rfft(x, b_out=self.b_out)
 
-    def backward(self, grad_output): #pylint: disable=W
+    def backward(self, grad_output):  # pylint: disable=W
         # ifft of grad_output is not necessarily real, therefore we cannot use rifft
         return so3_ifft(grad_output, for_grad=True, b_out=self.b_in)[..., 0]
+
 
 class SO3_ifft_real(torch.autograd.Function):
     def __init__(self, b_out=None):
@@ -413,10 +423,10 @@ class SO3_ifft_real(torch.autograd.Function):
         self.b_in = None
         self.b_out = b_out
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         nspec = x.size(0)
         self.b_in = round((3/4 * nspec)**(1/3))
         return so3_rifft(x, b_out=self.b_out)
 
-    def backward(self, grad_output): #pylint: disable=W
+    def backward(self, grad_output):  # pylint: disable=W
         return so3_rfft(grad_output, for_grad=True, b_out=self.b_in)

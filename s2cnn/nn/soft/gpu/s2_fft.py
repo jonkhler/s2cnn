@@ -1,10 +1,11 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 from functools import lru_cache
 import torch
 from string import Template
 import s2cnn.utils.cuda_utils as cuda_utils
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
+
 
 def s2_fft(x, for_grad=False, b_out=None):
     '''
@@ -21,12 +22,13 @@ def s2_fft(x, for_grad=False, b_out=None):
     assert b_out <= b_in
     batch_size = x.size()[:-3]
 
-    x = x.view(-1, 2 * b_in, 2 * b_in, 2) # [batch, beta, alpha, complex]
+    x = x.view(-1, 2 * b_in, 2 * b_in, 2)  # [batch, beta, alpha, complex]
 
-    output = _s2_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out) # [l * m, batch, complex]
-    output = output.view(-1, *batch_size, 2) # [l * m, ..., complex] (nspec, ..., 2)
+    output = _s2_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)  # [l * m, batch, complex]
+    output = output.view(-1, *batch_size, 2)  # [l * m, ..., complex] (nspec, ..., 2)
 
     return output
+
 
 def _s2_fft(x, for_grad, b_in, b_out):
     '''
@@ -36,7 +38,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
     nspec = b_out**2
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, like=x)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
     cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch)
 
     x = torch.fft(x, 1)  # [batch, beta, m, complex]
@@ -66,12 +68,13 @@ def s2_ifft(x, for_grad=False, b_out=None):
     assert b_out >= b_in
     batch_size = x.size()[1:-1]
 
-    x = x.view(nspec, -1, 2) # [l * m, batch, complex] (nspec, nbatch, 2)
+    x = x.view(nspec, -1, 2)  # [l * m, batch, complex] (nspec, nbatch, 2)
 
-    output = _s2_ifft(x, for_grad=for_grad, b_in=b_in, b_out=b_out) # [batch, beta, alpha, complex]
+    output = _s2_ifft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)  # [batch, beta, alpha, complex]
 
     output = output.view(*batch_size, 2 * b_out, 2 * b_out, 2)
     return output
+
 
 def _s2_ifft(x, for_grad, b_in, b_out):
     '''
@@ -80,7 +83,7 @@ def _s2_ifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, like=x) # [beta, l * m] (2 * b_out - 1, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m] (2 * b_out - 1, nspec)
     cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
@@ -95,11 +98,13 @@ def _s2_ifft(x, for_grad, b_in, b_out):
 
     return output
 
+
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, like):
+def _setup_wigner(b, nl, weighted, device):
     dss = __setup_wigner(b, nl, weighted)
-    dss = like.new_tensor(dss)  # [beta, l * m]
+    dss = torch.tensor(dss, dtype=torch.float32, device=device)  # [beta, l * m] # pylint: disable=E1102
     return dss
+
 
 @lru_cache(maxsize=None)
 def __setup_wigner(b, nl, weighted):
@@ -120,18 +125,19 @@ def __setup_wigner(b, nl, weighted):
         for l in range(nl):
             d = wigner_d_matrix(l, beta,
                                 field='complex', normalization='quantum', order='centered', condon_shortley='cs')
-            d = d[:, l] # d[m=:, n=0]
+            d = d[:, l]  # d[m=:, n=0]
 
             if weighted:
                 d *= w[b]
             else:
                 d *= 2 * l + 1
 
-            ds.append(d) # [m]
-        dss.append(np.concatenate(ds)) # [l * m]
+            ds.append(d)  # [m]
+        dss.append(np.concatenate(ds))  # [l * m]
 
-    dss = np.concatenate(dss) # [beta, l * m]
+    dss = np.concatenate(dss)  # [beta, l * m]
     return dss
+
 
 @lru_cache(maxsize=32)
 def _setup_s2fft_cuda_kernel(b, nspec, nbatch):
@@ -168,6 +174,7 @@ __global__ void main_(const float* in, const float* wig, float* out) {
 ''').substitute({'b': b, 'nbatch': nbatch, 'nspec': nspec})
 
     return cuda_utils.compile_kernel(kernel, b's2fft.cu', 'main_')
+
 
 @lru_cache(maxsize=32)
 def _setup_s2ifft_cuda_kernel(b, nl, nbatch):
@@ -212,13 +219,14 @@ class S2_fft_real(torch.autograd.Function):
         self.b_in = None
         self.b_out = b_out
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         from s2cnn.utils.complex_utils import as_complex
         self.b_in = x.size(-1) // 2
         return s2_fft(as_complex(x), b_out=self.b_out)
 
-    def backward(self, grad_output): #pylint: disable=W
+    def backward(self, grad_output):  # pylint: disable=W
         return s2_ifft(grad_output, for_grad=True, b_out=self.b_in)[..., 0]
+
 
 class S2_ifft_real(torch.autograd.Function):
     def __init__(self, b_out=None):
@@ -226,11 +234,11 @@ class S2_ifft_real(torch.autograd.Function):
         self.b_in = None
         self.b_out = b_out
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         nspec = x.size(0)
         self.b_in = round(nspec**0.5)
         return s2_ifft(x, b_out=self.b_out)[..., 0]
 
-    def backward(self, grad_output): #pylint: disable=W
+    def backward(self, grad_output):  # pylint: disable=W
         from s2cnn.utils.complex_utils import as_complex
         return s2_fft(as_complex(grad_output), for_grad=True, b_out=self.b_in)
