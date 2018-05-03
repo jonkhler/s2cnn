@@ -11,6 +11,27 @@ This library contains a PyTorch implementation of the rotation equivariant CNNs 
 * __lie_learn__: https://github.com/AMLab-Amsterdam/lie_learn
 * __pynvrtc__: https://github.com/NVIDIA/pynvrtc
 
+(commands to install all the dependencies on a new conda environment)
+```bash
+conda create --name cuda9 python=3.6 
+conda activate cuda9
+
+# s2cnn deps
+conda install pytorch torchvision cuda90 -c pytorch  
+conda install -c anaconda cupy  
+pip install pynvrtc  
+
+# lie_learn deps
+conda install -c anaconda cython  
+conda install -c anaconda requests  
+
+# shrec17 example dep
+conda install -c anaconda scipy  
+conda install -c conda-forge rtree shapely  
+conda install -c conda-forge pyembree  
+pip install "trimesh[easy]"  
+```
+
 ## Installation
 
 To install, run
