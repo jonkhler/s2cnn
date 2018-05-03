@@ -1,10 +1,11 @@
-#pylint: disable=C,R,E1101
+# pylint: disable=C,R,E1101
 import torch
 import numpy as np
 
 from s2cnn.nn.soft.gpu import so3_fft
 from s2cnn.utils.complex_utils import complex_mm
 from functools import lru_cache
+
 
 def so3_rotation(x, alpha, beta, gamma):
     '''
@@ -13,10 +14,10 @@ def so3_rotation(x, alpha, beta, gamma):
     b = x.size()[-1] // 2
     x_size = x.size()
 
-    Us = setup_so3_rotation(b, alpha, beta, gamma, x)
+    Us = setup_so3_rotation(b, alpha, beta, gamma, device_type=x.device.type, device_index=x.device.index)
 
     # fourier transform
-    x = so3_fft.SO3_fft_real()(x) # [l * m * n, ..., complex]
+    x = so3_fft.SO3_fft_real()(x)  # [l * m * n, ..., complex]
 
     # rotated spectrum
     Fz_list = []
@@ -26,18 +27,18 @@ def so3_rotation(x, alpha, beta, gamma):
         size = L ** 2
 
         Fx = x[begin:begin+size]
-        Fx = Fx.view(L, -1, 2) # [m, n * batch, complex]
+        Fx = Fx.view(L, -1, 2)  # [m, n * batch, complex]
 
-        U = Us[l].view(L, L, 2) # [m, n, complex]
+        U = Us[l].view(L, L, 2)  # [m, n, complex]
 
-        Fz = complex_mm(U, Fx, conj_x=True) # [m, n * batch, complex]
+        Fz = complex_mm(U, Fx, conj_x=True)  # [m, n * batch, complex]
 
-        Fz = Fz.view(size, -1, 2) # [m * n, batch, complex]
+        Fz = Fz.view(size, -1, 2)  # [m * n, batch, complex]
         Fz_list.append(Fz)
 
         begin += size
 
-    Fz = torch.cat(Fz_list, 0) # [l * m * n, batch, complex]
+    Fz = torch.cat(Fz_list, 0)  # [l * m * n, batch, complex]
     z = so3_fft.SO3_ifft_real()(Fz)
 
     z = z.contiguous()
@@ -45,18 +46,19 @@ def so3_rotation(x, alpha, beta, gamma):
 
     return z
 
+
 @lru_cache(maxsize=32)
-def setup_so3_rotation(b, alpha, beta, gamma, like):
+def setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     Us = [wigner_D_matrix(l, alpha, beta, gamma,
-                    field='complex', normalization='quantum', order='centered', condon_shortley='cs')
-                    for l in range(b)]
+                          field='complex', normalization='quantum', order='centered', condon_shortley='cs')
+          for l in range(b)]
     # Us[l][m, n] = exp(i m alpha) d^l_mn(beta) exp(i n gamma)
 
     Us = [Us[l].astype(np.complex64).view(np.float32).reshape((2 * l + 1, 2 * l + 1, 2)) for l in range(b)]
 
     # convert to torch Tensor
-    Us = [like.new_tensor(U) for U in Us]
+    Us = [torch.tensor(U, dtype=torch.float32, device=torch.device(device_type, device_index)) for U in Us]  # pylint: disable=E1102
 
     return Us

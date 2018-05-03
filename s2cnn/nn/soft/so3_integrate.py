@@ -1,6 +1,7 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 import torch
 from functools import lru_cache
+
 
 def so3_integrate(x):
     """
@@ -12,10 +13,10 @@ def so3_integrate(x):
 
     b = x.size(-1) // 2
 
-    w = setup_so3_integrate(b, x) # [beta]
+    w = setup_so3_integrate(b, device_type=x.device.type, device_index=x.device.index)  # [beta]
 
-    x = torch.sum(x, dim=-1).squeeze(-1) # [..., beta, alpha]
-    x = torch.sum(x, dim=-1).squeeze(-1) # [..., beta]
+    x = torch.sum(x, dim=-1).squeeze(-1)  # [..., beta, alpha]
+    x = torch.sum(x, dim=-1).squeeze(-1)  # [..., beta]
 
     sz = x.size()
     x = x.view(-1, 2 * b)
@@ -24,8 +25,9 @@ def so3_integrate(x):
     x = x.view(*sz[:-1])
     return x
 
+
 @lru_cache(maxsize=32)
-def setup_so3_integrate(b, like):
+def setup_so3_integrate(b, device_type, device_index):
     import lie_learn.spaces.S3 as S3
 
-    return like.new_tensor(S3.quadrature_weights(b)) # (2b) [beta]
+    return torch.tensor(S3.quadrature_weights(b), dtype=torch.float32, device=torch.device(device_type, device_index))  # (2b) [beta]  # pylint: disable=E1102
