@@ -33,7 +33,7 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
 
     torch.backends.cudnn.benchmark = True
 
-    ## Load the model
+    # Load the model
     loader = importlib.machinery.SourceFileLoader('model', os.path.join(log_dir, "model.py"))
     mod = types.ModuleType(loader.name)
     loader.exec_module(mod)
@@ -46,7 +46,7 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
 
     bw = model.bandwidths[0]
 
-    ## Load the dataset
+    # Load the dataset
     # Increasing `repeat` will generate more cached files
     transform = CacheNPY(prefix="b{}_".format(bw), repeat=augmentation, transform=torchvision.transforms.Compose(
         [
@@ -103,18 +103,22 @@ def main(log_dir, model_path, augmentation, dataset, batch_size, learning_rate, 
 
         total_loss = 0
         total_correct = 0
+        time_before_load = time.perf_counter()
         for batch_idx, (data, target) in enumerate(train_loader):
-            time_start = time.perf_counter()
+            time_after_load = time.perf_counter()
+            time_before_step = time.perf_counter()
             loss, correct = train_step(data, target)
 
             total_loss += loss
             total_correct += correct
 
-            logger.info("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} ACC={:.2} <ACC>={:.2} time={:.2}".format(
+            logger.info("[{}:{}/{}] LOSS={:.2} <LOSS>={:.2} ACC={:.2} <ACC>={:.2} time={:.2}+{:.2}".format(
                 epoch, batch_idx, len(train_loader),
                 loss, total_loss / (batch_idx + 1),
                 correct / len(data), total_correct / len(data) / (batch_idx + 1),
-                time.perf_counter() - time_start))
+                time_after_load - time_before_load,
+                time.perf_counter() - time_before_step))
+            time_before_load = time.perf_counter()
 
         torch.save(model.state_dict(), os.path.join(log_dir, "state.pkl"))
 
