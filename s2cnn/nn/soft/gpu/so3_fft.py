@@ -38,7 +38,7 @@ def _so3_fft(x, for_grad, b_in, b_out):
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False)
 
     x = torch.fft(x, 2)  # [batch, beta, m, n, complex]
@@ -79,7 +79,7 @@ def _so3_rfft(x, for_grad, b_in, b_out):
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
     cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True)
 
     y = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
@@ -119,7 +119,7 @@ def _so3_ifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
@@ -159,7 +159,7 @@ def _so3_rifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m * n] (2 * b_out, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m * n] (2 * b_out, nspec)
     cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
@@ -171,9 +171,9 @@ def _so3_rifft(x, for_grad, b_in, b_out):
 
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, device):
+def _setup_wigner(b, nl, weighted, device_type, device_index):
     dss = __setup_wigner(b, nl, weighted)
-    dss = torch.tensor(dss, dtype=torch.float32, device=device)  # [beta, l * m * n] # pylint: disable=E1102
+    dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m * n] # pylint: disable=E1102
     return dss
 
 

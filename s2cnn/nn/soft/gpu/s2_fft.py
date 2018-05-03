@@ -38,7 +38,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
     nspec = b_out**2
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
     cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch)
 
     x = torch.fft(x, 1)  # [batch, beta, m, complex]
@@ -83,7 +83,7 @@ def _s2_ifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)  # [beta, l * m] (2 * b_out - 1, nspec)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m] (2 * b_out - 1, nspec)
     cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
@@ -100,9 +100,9 @@ def _s2_ifft(x, for_grad, b_in, b_out):
 
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, device):
+def _setup_wigner(b, nl, weighted, device_type, device_index):
     dss = __setup_wigner(b, nl, weighted)
-    dss = torch.tensor(dss, dtype=torch.float32, device=device)  # [beta, l * m] # pylint: disable=E1102
+    dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
     return dss
 
 

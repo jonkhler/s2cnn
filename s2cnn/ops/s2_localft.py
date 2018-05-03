@@ -6,7 +6,7 @@ from functools import lru_cache
 
 def s2_local_ft(x, b, grid):
     # F is the local Fourier matrix, shape (n_spatial, 2 * n_spectral)
-    F = setup_s2_local_ft(b, grid, device=x.device)
+    F = setup_s2_local_ft(b, grid, device_type=x.device.type, device_index=x.device.index)
 
     # Get sizes
     sz = x.size()                                 # shape (..., n_spatial)
@@ -27,7 +27,7 @@ def s2_local_ft(x, b, grid):
 
 
 @lru_cache(maxsize=32)
-def setup_s2_local_ft(b, grid, device):
+def setup_s2_local_ft(b, grid, device_type, device_index):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     # Note: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
@@ -51,7 +51,7 @@ def setup_s2_local_ft(b, grid, device):
     F = F.view('float')
 
     # convert to torch Tensor
-    F = torch.tensor(F.astype(np.float32), dtype=torch.float32, device=device)  # pylint: disable=E1102
+    F = torch.tensor(F.astype(np.float32), dtype=torch.float32, device=torch.device(device_type, device_index))  # pylint: disable=E1102
 
     return F
 
