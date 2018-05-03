@@ -6,7 +6,7 @@ This library contains a PyTorch implementation of the rotation equivariant CNNs 
 
 ## Dependencies
 
-* __PyTorch__: http://pytorch.org/
+* __PyTorch__: http://pytorch.org/ (>= 0.4.0)
 * __cupy__: https://github.com/cupy/cupy
 * __lie_learn__: https://github.com/AMLab-Amsterdam/lie_learn
 * __pynvrtc__: https://github.com/NVIDIA/pynvrtc
