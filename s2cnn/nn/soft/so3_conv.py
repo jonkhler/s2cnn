@@ -55,7 +55,7 @@ class SO3Convolution(Module):
         assert z.size(2) == y.size(2)
         z = SO3_ifft_real()(z) # [batch, feature_out, beta, alpha, gamma]
 
-        z.add_(self.bias.expand_as(z))
+        z = z + self.bias
 
         return z
 

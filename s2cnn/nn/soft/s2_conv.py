@@ -44,6 +44,6 @@ class S2Convolution(Module):
         z = S2_mm()(x, y) # [l * m * n, batch, feature_out, complex]
         z = SO3_ifft_real()(z) # [batch, feature_out, beta, alpha, gamma]
 
-        z.add_(self.bias.expand_as(z))
+        z = z + self.bias
 
         return z
