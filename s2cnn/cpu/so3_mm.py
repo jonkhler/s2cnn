@@ -7,7 +7,7 @@ def so3_mm(x, y):
     :param y: [l * m * n, feature_in, feature_out, complex]
     :return:  [l * m * n,   batch,    feature_out, complex]
     '''
-    from s2cnn.utils.complex_utils import complex_mm
+    from s2cnn.utils.complex import complex_mm
     import math
 
     assert y.size(3) == 2

@@ -9,10 +9,8 @@ For simplicity, R is a rotation around the Z axis.
 #pylint: disable=C,R,E1101,W0621
 import torch
 
-from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
-from s2cnn.nn.soft.s2_conv import S2Convolution
-from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
-from s2cnn.nn.soft.so3_conv import SO3Convolution
+from s2cnn import s2_equatorial_grid, S2Convolution
+from s2cnn import so3_equatorial_grid, SO3Convolution
 
 # Define the two convolutions
 s2_grid = s2_equatorial_grid(max_beta=0, n_alpha=64, n_beta=1)

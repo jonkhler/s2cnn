@@ -2,7 +2,7 @@
 import math
 from functools import lru_cache
 import torch
-import s2cnn.utils.cuda_utils as cuda_utils
+import s2cnn.utils.cuda as cuda_utils
 
 class SO3_mm(torch.autograd.Function):
     def __init__(self): # pylint: disable=W0235

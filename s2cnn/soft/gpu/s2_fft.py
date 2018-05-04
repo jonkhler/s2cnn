@@ -2,7 +2,7 @@
 from functools import lru_cache
 import torch
 from string import Template
-import s2cnn.utils.cuda_utils as cuda_utils
+import s2cnn.utils.cuda as cuda_utils
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
 
@@ -220,7 +220,7 @@ class S2_fft_real(torch.autograd.Function):
         self.b_out = b_out
 
     def forward(self, x):  # pylint: disable=W
-        from s2cnn.utils.complex_utils import as_complex
+        from s2cnn.utils.complex import as_complex
         self.b_in = x.size(-1) // 2
         return s2_fft(as_complex(x), b_out=self.b_out)
 
@@ -240,5 +240,5 @@ class S2_ifft_real(torch.autograd.Function):
         return s2_ifft(x, b_out=self.b_out)[..., 0]
 
     def backward(self, grad_output):  # pylint: disable=W
-        from s2cnn.utils.complex_utils import as_complex
+        from s2cnn.utils.complex import as_complex
         return s2_fft(as_complex(grad_output), for_grad=True, b_out=self.b_in)

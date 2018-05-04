@@ -2,7 +2,7 @@
 import math
 from functools import lru_cache
 import torch
-import s2cnn.utils.cuda_utils as cuda_utils
+import s2cnn.utils.cuda as cuda_utils
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
 

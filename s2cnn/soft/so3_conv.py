@@ -4,9 +4,9 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules import Module
 
-from s2cnn.nn.soft.gpu.so3_fft import SO3_fft_real, SO3_ifft_real
-from s2cnn.ops.so3_localft import so3_local_ft
-from s2cnn.ops.gpu.so3_mm import SO3_mm
+from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
+from s2cnn.gpu.so3_mm import SO3_mm
+from s2cnn import so3_ft
 
 class SO3Convolution(Module):
     def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid):
@@ -43,7 +43,7 @@ class SO3Convolution(Module):
         assert x.size(4) == 2 * self.b_in
 
         x = SO3_fft_real(b_out=self.b_out)(x) # [l * m * n, batch, feature_in, complex]
-        y = so3_local_ft(self.kernel * self.scaling, self.b_out, self.grid) # [feature_in, feature_out, l * m * n, complex]
+        y = so3_ft(self.kernel * self.scaling, self.b_out, self.grid) # [feature_in, feature_out, l * m * n, complex]
         y = y.transpose(0, 2) # [l * m * n, feature_out, feature_in, complex]
         y = y.transpose(1, 2) # [l * m * n, feature_in, feature_out, complex]
         y = y.contiguous()

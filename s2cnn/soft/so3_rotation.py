@@ -2,8 +2,8 @@
 import torch
 import numpy as np
 
-from s2cnn.nn.soft.gpu import so3_fft
-from s2cnn.utils.complex_utils import complex_mm
+from .gpu.so3_fft import so3_fft
+from s2cnn.utils.complex import complex_mm
 from functools import lru_cache
 
 
