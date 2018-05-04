@@ -31,7 +31,7 @@ class SO3_mm(torch.autograd.Function):
 
         if self.needs_input_grad[1]:
             grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch, trans_out_feature=True, conj_x=True, trans_x_spec=True, trans_x_feature=True)
-            gradx = gradz.new_empty((nspec, nfeature_in, nfeature_out, 2))
+            grady = gradz.new_empty((nspec, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(gradz, x, grady)
 
         return gradx, grady
