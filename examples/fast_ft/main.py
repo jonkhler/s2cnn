@@ -31,7 +31,7 @@ x = torch.einsum("bac,b->bac", (x, weights))
 
 y2 = so3_rft(x.view(-1), b, so3_soft_grid(b))
 
-print("so3_ft: {}s".format(time.perf_counter() - t))
+print("so3_rft: {}s".format(time.perf_counter() - t))
 
 
 # Compare values

@@ -18,7 +18,7 @@ def so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n
     A = A.flatten()
     C = C.flatten()
     grid = np.stack((B, A, C), axis=1)
-    if sum(grid[:, 1] == 0) > 1:
+    if sum(grid[:, 0] == 0) > 1:
         warnings.warn("Gimbal lock: beta take value 0 in the grid")
     return tuple(tuple(bac) for bac in grid)
 
@@ -36,7 +36,7 @@ def so3_equatorial_grid(max_beta=0, max_gamma=np.pi / 8, n_alpha=32, n_beta=1, n
     A = A.flatten()
     C = C.flatten()
     grid = np.stack((B, A, C), axis=1)
-    if sum(grid[:, 1] == 0) > 1:
+    if sum(grid[:, 0] == 0) > 1:
         warnings.warn("Gimbal lock: beta take value 0 in the grid")
     return tuple(tuple(bac) for bac in grid)
 
