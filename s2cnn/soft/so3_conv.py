@@ -1,4 +1,4 @@
-#pylint: disable=C,R,E1101
+# pylint: disable=C,R,E1101
 import math
 import torch
 from torch.nn.parameter import Parameter
@@ -6,7 +6,8 @@ from torch.nn.modules import Module
 
 from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn.gpu.so3_mm import SO3_mm
-from s2cnn import so3_ft
+from s2cnn import so3_rft
+
 
 class SO3Convolution(Module):
     def __init__(self, nfeature_in, nfeature_out, b_in, b_out, grid):
@@ -32,7 +33,7 @@ class SO3Convolution(Module):
         # Therefore the scaling, needed for the proper forward propagation, is done "outside" of the parameters
         self.scaling = 1. / math.sqrt(len(self.grid) * self.nfeature_in * (self.b_out ** 3.) / (self.b_in ** 3.))
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         '''
         :x:      [batch, feature_in,  beta, alpha, gamma]
         :return: [batch, feature_out, beta, alpha, gamma]
@@ -42,18 +43,15 @@ class SO3Convolution(Module):
         assert x.size(3) == 2 * self.b_in
         assert x.size(4) == 2 * self.b_in
 
-        x = SO3_fft_real(b_out=self.b_out)(x) # [l * m * n, batch, feature_in, complex]
-        y = so3_ft(self.kernel * self.scaling, self.b_out, self.grid) # [feature_in, feature_out, l * m * n, complex]
-        y = y.transpose(0, 2) # [l * m * n, feature_out, feature_in, complex]
-        y = y.transpose(1, 2) # [l * m * n, feature_in, feature_out, complex]
-        y = y.contiguous()
+        x = SO3_fft_real(b_out=self.b_out)(x)  # [l * m * n, batch, feature_in, complex]
+        y = so3_rft(self.kernel * self.scaling, self.b_out, self.grid)  # [l * m * n, feature_in, feature_out, complex]
         assert x.size(0) == y.size(0)
         assert x.size(2) == y.size(1)
-        z = SO3_mm()(x, y) # [l * m * n, batch, feature_out, complex]
+        z = SO3_mm()(x, y)  # [l * m * n, batch, feature_out, complex]
         assert z.size(0) == x.size(0)
         assert z.size(1) == x.size(1)
         assert z.size(2) == y.size(2)
-        z = SO3_ifft_real()(z) # [batch, feature_out, beta, alpha, gamma]
+        z = SO3_ifft_real()(z)  # [batch, feature_out, beta, alpha, gamma]
 
         z = z + self.bias
 
@@ -64,6 +62,7 @@ class SO3Shortcut(Module):
     '''
     Useful for ResNet
     '''
+
     def __init__(self, nfeature_in, nfeature_out, b_in, b_out):
         super(SO3Shortcut, self).__init__()
         assert b_out <= b_in
@@ -75,7 +74,7 @@ class SO3Shortcut(Module):
         else:
             self.conv = None
 
-    def forward(self, x): #pylint: disable=W
+    def forward(self, x):  # pylint: disable=W
         '''
         :x:      [batch, feature_in,  beta, alpha, gamma]
         :return: [batch, feature_out, beta, alpha, gamma]

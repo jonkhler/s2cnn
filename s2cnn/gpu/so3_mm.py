@@ -1,18 +1,19 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 import math
 from functools import lru_cache
 import torch
 import s2cnn.utils.cuda as cuda_utils
 
+
 class SO3_mm(torch.autograd.Function):
-    def __init__(self): # pylint: disable=W0235
+    def __init__(self):  # pylint: disable=W0235
         super(SO3_mm, self).__init__()
 
-    def forward(self, x, y): #pylint: disable=W
+    def forward(self, x, y):  # pylint: disable=W
         self.save_for_backward(x, y)
         return so3_mm(x, y)
 
-    def backward(self, gradz): #pylint: disable=W
+    def backward(self, gradz):  # pylint: disable=W
         x, y = self.saved_tensors
         nspec = x.size(0)
         nbatch = x.size(1)
@@ -30,7 +31,8 @@ class SO3_mm(torch.autograd.Function):
             gradx_cuda_kernel(gradz, y, gradx)
 
         if self.needs_input_grad[1]:
-            grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch, trans_out_feature=True, conj_x=True, trans_x_spec=True, trans_x_feature=True)
+            grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch, trans_out_feature=True,
+                                                         conj_x=True, trans_x_spec=True, trans_x_feature=True)
             grady = gradz.new_empty((nspec, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(gradz, x, grady)
 
@@ -59,9 +61,10 @@ def so3_mm(x, y):
     cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True, trans_y_spec=True)
 
     output = x.new_empty((nspec, nbatch, nfeature_out, 2))
-    cuda_kernel(x, y, output) # [l * m * n, batch, feature_out, complex]
+    cuda_kernel(x, y, output)  # [l * m * n, batch, feature_out, complex]
 
     return output
+
 
 @lru_cache(maxsize=32)
 def _setup_so3mm_cuda_kernel(nl, ni, nj, nk,
@@ -193,7 +196,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
 
     def fun(x, y, output):
         kernel(block=(32, 32, 1),
-           grid=(math.ceil((2 * nl - 1) * nj / 32), math.ceil((2 * nl - 1) * ni / 32), nl),
-           args=[x.data_ptr(), y.data_ptr(), output.data_ptr()],
-           stream=stream)
+               grid=(math.ceil((2 * nl - 1) * nj / 32), math.ceil((2 * nl - 1) * ni / 32), nl),
+               args=[x.data_ptr(), y.data_ptr(), output.data_ptr()],
+               stream=stream)
     return fun

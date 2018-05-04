@@ -2,12 +2,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
 
-from s2cnn.ops.s2_localft import equatorial_grid as s2_equatorial_grid
-from s2cnn.nn.soft.s2_conv import S2Convolution
-from s2cnn.ops.so3_localft import equatorial_grid as so3_equatorial_grid
-from s2cnn.nn.soft.so3_conv import SO3Convolution
-from s2cnn.nn.soft.so3_integrate import so3_integrate
-
+from s2cnn import s2_equatorial_grid, S2Convolution, so3_equatorial_grid, SO3Convolution, so3_integrate
 
 class Model(nn.Module):
     def __init__(self, nclasses):

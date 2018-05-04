@@ -1,18 +1,19 @@
-#pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101
 from functools import lru_cache
 import torch
 from string import Template
 import s2cnn.utils.cuda as cuda_utils
 
+
 class S2_mm(torch.autograd.Function):
-    def __init__(self): # pylint: disable=W0235
+    def __init__(self):  # pylint: disable=W0235
         super(S2_mm, self).__init__()
 
-    def forward(self, x, y): #pylint: disable=W
+    def forward(self, x, y):  # pylint: disable=W
         self.save_for_backward(x, y)
         return s2_mm(x, y)
 
-    def backward(self, gradz): #pylint: disable=W
+    def backward(self, gradz):  # pylint: disable=W
         x, y = self.saved_tensors
         nl = round(x.size(0)**0.5)
         nbatch = x.size(1)
