@@ -32,14 +32,14 @@ class S2_mm(torch.autograd.Function):
             gradx = gradz.new_empty((nl**2, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl**2 * nbatch * nfeature_in, 1024), 1, 1),
-                              args=[gradz.data_ptr(), y.data_ptr(), gradx.data_ptr()],
+                              args=[gradz.contiguous().data_ptr(), y.contiguous().data_ptr(), gradx.data_ptr()],
                               stream=stream)
 
         if self.needs_input_grad[1]:
             grady = gradz.new_empty((nl**2, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl**2 * nfeature_in * nfeature_out, 1024), 1, 1),
-                              args=[gradz.data_ptr(), x.data_ptr(), grady.data_ptr()],
+                              args=[gradz.contiguous().data_ptr(), x.contiguous().data_ptr(), grady.data_ptr()],
                               stream=stream)
 
         return gradx, grady
@@ -71,7 +71,7 @@ def s2_mm(x, y):
     output = x.new_empty((nspec, nbatch, nfeature_out, 2))
     cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                 grid=(cuda_utils.get_blocks(nspec * nbatch * nfeature_out, 1024), 1, 1),
-                args=[x.data_ptr(), y.data_ptr(), output.data_ptr()],
+                args=[x.contiguous().data_ptr(), y.contiguous().data_ptr(), output.data_ptr()],
                 stream=stream)
     # [l * m * n, batch, feature_out, complex]
 

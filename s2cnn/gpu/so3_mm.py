@@ -195,8 +195,9 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
     def fun(x, y, output):
+        assert output.is_contiguous()
         kernel(block=(32, 32, 1),
                grid=(math.ceil((2 * nl - 1) * nj / 32), math.ceil((2 * nl - 1) * ni / 32), nl),
-               args=[x.data_ptr(), y.data_ptr(), output.data_ptr()],
+               args=[x.contiguous().data_ptr(), y.contiguous().data_ptr(), output.data_ptr()],
                stream=stream)
     return fun

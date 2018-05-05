@@ -174,7 +174,7 @@ def _so3_rifft(x, for_grad, b_in, b_out):
 def _setup_wigner(b, nl, weighted, device_type, device_index):
     dss = __setup_wigner(b, nl, weighted)
     dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m * n] # pylint: disable=E1102
-    return dss
+    return dss.contiguous()
 
 
 @lru_cache(maxsize=None)
@@ -307,9 +307,10 @@ __global__ void main_(const float* in, const float* wig, float* out)
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
     def fun(x, wigner, output):
+        assert output.is_contiguous()
         kernel(block=(32, 32, 1),
                grid=(math.ceil(b_out / 32), math.ceil(nbatch / 32), (2 * b_out - 1)**2),
-               args=[x.data_ptr(), wigner.data_ptr(), output.data_ptr()],
+               args=[x.contiguous().data_ptr(), wigner.contiguous().data_ptr(), output.data_ptr()],
                stream=stream)
     return fun
 

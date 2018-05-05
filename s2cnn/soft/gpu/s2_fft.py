@@ -47,7 +47,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
     output = x.new_empty((nspec, nbatch, 2))
     cuda_kernel(block=(1024, 1, 1),
                 grid=(cuda_utils.get_blocks(nspec * nbatch, 1024), 1, 1),
-                args=[x.data_ptr(), wigner.data_ptr(), output.data_ptr()],
+                args=[x.contiguous().data_ptr(), wigner.contiguous().data_ptr(), output.data_ptr()],
                 stream=stream)
     # [l * m, batch, complex]
 
@@ -103,7 +103,7 @@ def _s2_ifft(x, for_grad, b_in, b_out):
 def _setup_wigner(b, nl, weighted, device_type, device_index):
     dss = __setup_wigner(b, nl, weighted)
     dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
-    return dss
+    return dss.contiguous()
 
 
 @lru_cache(maxsize=None)

@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 
-from .gpu.so3_fft import so3_fft
+from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn.utils.complex import complex_mm
 from functools import lru_cache
 
@@ -17,7 +17,7 @@ def so3_rotation(x, alpha, beta, gamma):
     Us = setup_so3_rotation(b, alpha, beta, gamma, device_type=x.device.type, device_index=x.device.index)
 
     # fourier transform
-    x = so3_fft.SO3_fft_real()(x)  # [l * m * n, ..., complex]
+    x = SO3_fft_real()(x)  # [l * m * n, ..., complex]
 
     # rotated spectrum
     Fz_list = []
@@ -39,7 +39,7 @@ def so3_rotation(x, alpha, beta, gamma):
         begin += size
 
     Fz = torch.cat(Fz_list, 0)  # [l * m * n, batch, complex]
-    z = so3_fft.SO3_ifft_real()(Fz)
+    z = SO3_ifft_real()(Fz)
 
     z = z.contiguous()
     z = z.view(*x_size)
