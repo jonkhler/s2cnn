@@ -1,6 +1,8 @@
 # Spherical CNNs
 ## Equivariant CNNs for the sphere and SO(3) implemented in PyTorch
 
+![Equivariance](https://github.com/jonas-koehler/s2cnn/raw/master/examples/equivariance_plot/fig.jpeg)
+
 ## Overview
 This library contains a PyTorch implementation of the rotation equivariant CNNs for spherical signals (e.g. omnidirectional images, signals on the globe) as presented in [[1]](https://arxiv.org/abs/1801.10130). Equivariant networks for the plane are available [here](https://github.com/tscohen/GrouPy).
 
