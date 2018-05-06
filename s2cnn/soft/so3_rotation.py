@@ -4,6 +4,7 @@ import numpy as np
 
 from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn.utils.complex import complex_mm
+from s2cnn.utils.decorator import show_running
 from functools import lru_cache
 
 
@@ -14,7 +15,7 @@ def so3_rotation(x, alpha, beta, gamma):
     b = x.size()[-1] // 2
     x_size = x.size()
 
-    Us = setup_so3_rotation(b, alpha, beta, gamma, device_type=x.device.type, device_index=x.device.index)
+    Us = _setup_so3_rotation(b, alpha, beta, gamma, device_type=x.device.type, device_index=x.device.index)
 
     # fourier transform
     x = SO3_fft_real()(x)  # [l * m * n, ..., complex]
@@ -48,7 +49,8 @@ def so3_rotation(x, alpha, beta, gamma):
 
 
 @lru_cache(maxsize=32)
-def setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
+@show_running
+def _setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     Us = [wigner_D_matrix(l, alpha, beta, gamma,

@@ -3,6 +3,7 @@ from functools import lru_cache
 import torch
 from string import Template
 import s2cnn.utils.cuda as cuda_utils
+from s2cnn.utils.decorator import show_running
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
 
@@ -101,13 +102,14 @@ def _s2_ifft(x, for_grad, b_in, b_out):
 
 @lru_cache(maxsize=32)
 def _setup_wigner(b, nl, weighted, device_type, device_index):
-    dss = __setup_wigner(b, nl, weighted)
+    dss = _setup_s2_fft(b, nl, weighted)
     dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
     return dss.contiguous()
 
 
 @lru_cache(maxsize=None)
-def __setup_wigner(b, nl, weighted):
+@show_running
+def _setup_s2_fft(b, nl, weighted):
     from lie_learn.representations.SO3.wigner_d import wigner_d_matrix
     import lie_learn.spaces.S3 as S3
     import numpy as np

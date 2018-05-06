@@ -2,6 +2,7 @@
 import torch
 import numpy as np
 from functools import lru_cache
+from s2cnn.utils.decorator import show_running
 
 
 def s2_rft(x, b, grid):
@@ -24,6 +25,7 @@ def s2_rft(x, b, grid):
 
 
 @lru_cache(maxsize=32)
+@show_running
 def _setup_s2_ft(b, grid, device_type, device_index):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
