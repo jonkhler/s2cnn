@@ -19,7 +19,7 @@ def s2_rft(x, b, grid):
     assert x.size(-1) == F.size(0)
 
     sz = x.size()
-    x = torch.einsum("ia,afc->fic", (x.view(-1, x.size(-1)), F))  # [l * m, ..., complex]
+    x = torch.einsum("ia,afc->fic", (x.view(-1, x.size(-1)), F.clone()))  # [l * m, ..., complex]
     x = x.view(-1, *sz[:-1], 2)
     return x
 
