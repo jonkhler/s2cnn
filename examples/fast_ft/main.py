@@ -2,36 +2,29 @@
 '''
 Compare so3_ft with so3_fft
 '''
-import time
 import torch
 
 
-b = 6  # bandwidth
+b_in, b_out = 6, 6  # bandwidth
 # random input data to be Fourier Transform
-x = torch.randn(2 * b, 2 * b, 2 * b, dtype=torch.float, device="cuda")  # [beta, alpha, gamma]
+x = torch.randn(2 * b_in, 2 * b_in, 2 * b_in, dtype=torch.float, device="cuda")  # [beta, alpha, gamma]
 
 
 # Fast version
 from s2cnn.soft.gpu.so3_fft import so3_rfft
-t = time.perf_counter()
 
-y1 = so3_rfft(x)
-
-print("so3_rfft: {}s".format(time.perf_counter() - t))
+y1 = so3_rfft(x, b_out=b_out)
 
 
 # Equivalent version but using the naive version
 from s2cnn import so3_rft, so3_soft_grid
 import lie_learn.spaces.S3 as S3
-t = time.perf_counter()
 
 # so3_ft computes a non weighted Fourier transform
-weights = torch.tensor(S3.quadrature_weights(b), dtype=torch.float, device="cuda")
+weights = torch.tensor(S3.quadrature_weights(b_in), dtype=torch.float, device="cuda")
 x = torch.einsum("bac,b->bac", (x, weights))
 
-y2 = so3_rft(x.view(-1), b, so3_soft_grid(b))
-
-print("so3_rft: {}s".format(time.perf_counter() - t))
+y2 = so3_rft(x.view(-1), b_out, so3_soft_grid(b_in))
 
 
 # Compare values
