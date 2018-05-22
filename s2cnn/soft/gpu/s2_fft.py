@@ -3,7 +3,8 @@ from functools import lru_cache
 import torch
 from string import Template
 import s2cnn.utils.cuda as cuda_utils
-from s2cnn.utils.decorator import show_running
+from s2cnn.utils.decorator import cached_dirpklgz
+
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
 
@@ -107,8 +108,7 @@ def _setup_wigner(b, nl, weighted, device_type, device_index):
     return dss.contiguous()
 
 
-@lru_cache(maxsize=None)
-@show_running
+@cached_dirpklgz("cache/setup_s2_fft")
 def _setup_s2_fft(b, nl, weighted):
     from lie_learn.representations.SO3.wigner_d import wigner_d_matrix
     import lie_learn.spaces.S3 as S3

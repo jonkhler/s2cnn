@@ -4,8 +4,8 @@ import numpy as np
 
 from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn.utils.complex import complex_mm
-from s2cnn.utils.decorator import show_running
 from functools import lru_cache
+from s2cnn.utils.decorator import cached_dirpklgz
 
 
 def so3_rotation(x, alpha, beta, gamma):
@@ -48,9 +48,8 @@ def so3_rotation(x, alpha, beta, gamma):
     return z
 
 
-@lru_cache(maxsize=32)
-@show_running
-def _setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
+@cached_dirpklgz("cache/setup_so3_rotation")
+def __setup_so3_rotation(b, alpha, beta, gamma):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     Us = [wigner_D_matrix(l, alpha, beta, gamma,
@@ -59,6 +58,13 @@ def _setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
     # Us[l][m, n] = exp(i m alpha) d^l_mn(beta) exp(i n gamma)
 
     Us = [Us[l].astype(np.complex64).view(np.float32).reshape((2 * l + 1, 2 * l + 1, 2)) for l in range(b)]
+
+    return Us
+
+
+@lru_cache(maxsize=32)
+def _setup_so3_rotation(b, alpha, beta, gamma, device_type, device_index):
+    Us = __setup_so3_rotation(b, alpha, beta, gamma)
 
     # convert to torch Tensor
     Us = [torch.tensor(U, dtype=torch.float32, device=torch.device(device_type, device_index)) for U in Us]  # pylint: disable=E1102

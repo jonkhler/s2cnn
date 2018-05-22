@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 from functools import lru_cache
-from s2cnn.utils.decorator import show_running
+from s2cnn.utils.decorator import cached_dirpklgz
 
 
 def so3_rft(x, b, grid):
@@ -24,9 +24,8 @@ def so3_rft(x, b, grid):
     return x
 
 
-@lru_cache(maxsize=32)
-@show_running
-def _setup_so3_ft(b, grid, device_type, device_index):
+@cached_dirpklgz("cache/setup_so3_ft")
+def __setup_so3_ft(b, grid):
     from lie_learn.representations.SO3.wigner_d import wigner_D_matrix
 
     # Note: optionally get quadrature weights for the chosen grid and use them to weigh the D matrices below.
@@ -50,6 +49,12 @@ def _setup_so3_ft(b, grid, device_type, device_index):
     # In the so3_local_ft, we will multiply a batch of real (..., n_spatial) vectors x with this matrix F as xF.
     # The result is a (..., 2 * n_spectral) array that can be interpreted as a batch of complex vectors.
     F = F.view('float').reshape((-1, n_spectral, 2))
+    return F
+
+
+@lru_cache(maxsize=32)
+def _setup_so3_ft(b, grid, device_type, device_index):
+    F = __setup_so3_ft(b, grid)
 
     # convert to torch Tensor
     F = torch.tensor(F.astype(np.float32), dtype=torch.float32, device=torch.device(device_type, device_index))  # pylint: disable=E1102
