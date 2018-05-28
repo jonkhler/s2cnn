@@ -42,11 +42,6 @@ To install, run
 $ python setup.py install
 ```
 
-## Structure
-* [__nn__](s2cnn/nn): PyTorch nn.Modules for the S^2 and SO(3) conv layers
-* [__ops__](s2cnn/ops): Low-level operations used for computing the G-FFT
-* [__examples__](examples): Example code for using the library within a PyTorch project
-
 ## Usage
 Please have a look at the [examples](examples).
 
