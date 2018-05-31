@@ -65,7 +65,7 @@ def so3_rfft(x, for_grad=False, b_out=None):
     assert b_out <= b_in
     batch_size = x.size()[:-3]
 
-    x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in)  # [batch, beta, alpha, gamma]
+    x = x.contiguous().view(-1, 2 * b_in, 2 * b_in, 2 * b_in)  # [batch, beta, alpha, gamma]
 
     output = _so3_rfft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)
     output = output.view(-1, *batch_size, 2)  # [l * m * n, ..., complex]
