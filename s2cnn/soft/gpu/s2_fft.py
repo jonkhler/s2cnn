@@ -1,6 +1,7 @@
 # pylint: disable=R,C,E1101
 from functools import lru_cache
 import torch
+import torch.cuda
 from string import Template
 import s2cnn.utils.cuda as cuda_utils
 from s2cnn.utils.decorator import cached_dirpklgz
@@ -37,11 +38,13 @@ def _s2_fft(x, for_grad, b_in, b_out):
     :param x: [batch, beta, alpha, complex] (nbatch, 2 * b_in, 2 * b_in, 2)
     :return: [l * m, batch, complex] (b_out**2, nbatch, 2)
     '''
-    nspec = b_out**2
+    nspec = b_out ** 2
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
-    cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch)
+    device = torch.cuda.current_device()
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type,
+                           device_index=x.device.index)
+    cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch, device=device)
 
     x = torch.fft(x, 1)  # [batch, beta, m, complex]
 
@@ -63,8 +66,8 @@ def s2_ifft(x, for_grad=False, b_out=None):
     assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
-    b_in = round(nspec**0.5)
-    assert nspec == b_in**2
+    b_in = round(nspec ** 0.5)
+    assert nspec == b_in ** 2
     if b_out is None:
         b_out = b_in
     assert b_out >= b_in
@@ -85,13 +88,15 @@ def _s2_ifft(x, for_grad, b_in, b_out):
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m] (2 * b_out - 1, nspec)
-    cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch)
+    device = torch.cuda.current_device()
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type,
+                           device_index=x.device.index)  # [beta, l * m] (2 * b_out - 1, nspec)
+    cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch, device=device)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2))
     cuda_kernel(block=(1024, 1, 1),
-                grid=(cuda_utils.get_blocks(nbatch * (2 * b_out)**2, 1024), 1, 1),
+                grid=(cuda_utils.get_blocks(nbatch * (2 * b_out) ** 2, 1024), 1, 1),
                 args=[x.data_ptr(), wigner.data_ptr(), output.data_ptr()],
                 stream=stream)
     # [batch, beta, m, complex] (nbatch, 2 * b_out, 2 * b_out, 2)
@@ -104,7 +109,8 @@ def _s2_ifft(x, for_grad, b_in, b_out):
 @lru_cache(maxsize=32)
 def _setup_wigner(b, nl, weighted, device_type, device_index):
     dss = _setup_s2_fft(b, nl, weighted)
-    dss = torch.tensor(dss, dtype=torch.float32, device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
+    dss = torch.tensor(dss, dtype=torch.float32,
+                       device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
     return dss.contiguous()
 
 
@@ -119,7 +125,8 @@ def _setup_s2_fft(b, nl, weighted):
     w = S3.quadrature_weights(b) * 2 * b
     assert len(w) == len(betas)
 
-    logging.getLogger("trainer").info("Compute Wigner (only columns): b=%d nbeta=%d nl=%d nspec=%d", b, len(betas), nl, nl**2)
+    logging.getLogger("trainer").info("Compute Wigner (only columns): b=%d nbeta=%d nl=%d nspec=%d", b, len(betas), nl,
+                                      nl ** 2)
 
     dss = []
     for b, beta in enumerate(betas):
@@ -142,7 +149,7 @@ def _setup_s2_fft(b, nl, weighted):
 
 
 @lru_cache(maxsize=32)
-def _setup_s2fft_cuda_kernel(b, nspec, nbatch):
+def _setup_s2fft_cuda_kernel(b, nspec, nbatch, device=0):
     kernel = Template('''
 #define COMPUTE_LM(s) \
     int l = powf(s, 0.5); \
@@ -179,7 +186,7 @@ __global__ void main_(const float* in, const float* wig, float* out) {
 
 
 @lru_cache(maxsize=32)
-def _setup_s2ifft_cuda_kernel(b, nl, nbatch):
+def _setup_s2ifft_cuda_kernel(b, nl, nbatch, device=0):
     kernel = Template('''
 extern "C"
 __global__ void main_(const float* in, const float* wig, float* out) {
@@ -210,7 +217,7 @@ __global__ void main_(const float* in, const float* wig, float* out) {
         out[index * 2 + 1] = out_im;
     }
 }
-''').substitute({'b': b, 'nbatch': nbatch, 'nl': nl, 'nspec': nl**2})
+''').substitute({'b': b, 'nbatch': nbatch, 'nl': nl, 'nspec': nl ** 2})
 
     return cuda_utils.compile_kernel(kernel, b's2ifft.cu', 'main_')
 
@@ -238,7 +245,7 @@ class S2_ifft_real(torch.autograd.Function):
 
     def forward(self, x):  # pylint: disable=W
         nspec = x.size(0)
-        self.b_in = round(nspec**0.5)
+        self.b_in = round(nspec ** 0.5)
         return s2_ifft(x, b_out=self.b_out)[..., 0]
 
     def backward(self, grad_output):  # pylint: disable=W

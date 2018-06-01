@@ -1,6 +1,7 @@
 # pylint: disable=R,C,E1101
 from functools import lru_cache
 import torch
+import torch.cuda
 from string import Template
 import s2cnn.utils.cuda as cuda_utils
 
@@ -15,30 +16,33 @@ class S2_mm(torch.autograd.Function):
 
     def backward(self, gradz):  # pylint: disable=W
         x, y = self.saved_tensors
-        nl = round(x.size(0)**0.5)
+        nl = round(x.size(0) ** 0.5)
         nbatch = x.size(1)
         nfeature_in = x.size(2)
         nfeature_out = y.size(2)
-        nspec = (4 * nl**2 - 1) * nl // 3
+        nspec = (4 * nl ** 2 - 1) * nl // 3
+        device = torch.cuda.current_device()
 
-        gradx_cuda_kernel = _setup_s2mm_gradx_cuda_kernel(nbatch=nbatch, nspec=nspec, nl=nl, nfeature_in=nfeature_in, nfeature_out=nfeature_out)
-        grady_cuda_kernel = _setup_s2mm_grady_cuda_kernel(nbatch=nbatch, nspec=nspec, nl=nl, nfeature_in=nfeature_in, nfeature_out=nfeature_out)
+        gradx_cuda_kernel = _setup_s2mm_gradx_cuda_kernel(nbatch=nbatch, nspec=nspec, nl=nl, nfeature_in=nfeature_in,
+                                                          nfeature_out=nfeature_out, device=device)
+        grady_cuda_kernel = _setup_s2mm_grady_cuda_kernel(nbatch=nbatch, nspec=nspec, nl=nl, nfeature_in=nfeature_in,
+                                                          nfeature_out=nfeature_out, device=device)
 
         stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
         gradx = grady = None
 
         if self.needs_input_grad[0]:
-            gradx = gradz.new_empty((nl**2, nbatch, nfeature_in, 2))
+            gradx = gradz.new_empty((nl ** 2, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
-                              grid=(cuda_utils.get_blocks(nl**2 * nbatch * nfeature_in, 1024), 1, 1),
+                              grid=(cuda_utils.get_blocks(nl ** 2 * nbatch * nfeature_in, 1024), 1, 1),
                               args=[gradz.contiguous().data_ptr(), y.contiguous().data_ptr(), gradx.data_ptr()],
                               stream=stream)
 
         if self.needs_input_grad[1]:
-            grady = gradz.new_empty((nl**2, nfeature_in, nfeature_out, 2))
+            grady = gradz.new_empty((nl ** 2, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
-                              grid=(cuda_utils.get_blocks(nl**2 * nfeature_in * nfeature_out, 1024), 1, 1),
+                              grid=(cuda_utils.get_blocks(nl ** 2 * nfeature_in * nfeature_out, 1024), 1, 1),
                               args=[gradz.contiguous().data_ptr(), x.contiguous().data_ptr(), grady.data_ptr()],
                               stream=stream)
 
@@ -60,12 +64,14 @@ def s2_mm(x, y):
     nfeature_out = y.size(2)
     assert y.size(1) == nfeature_in
     assert y.size(0) == x.size(0)
-    nl = round(x.size(0)**0.5)
-    nspec = (4 * nl**2 - 1) * nl // 3
+    nl = round(x.size(0) ** 0.5)
+    nspec = (4 * nl ** 2 - 1) * nl // 3
     assert x.size(0) == nl ** 2
     assert y.size(0) == nl ** 2
 
-    cuda_kernel = _setup_s2mm_cuda_kernel(nbatch=nbatch, nspec=nspec, nfeature_in=nfeature_in, nfeature_out=nfeature_out)
+    device = torch.cuda.current_device()
+    cuda_kernel = _setup_s2mm_cuda_kernel(nbatch=nbatch, nspec=nspec, nfeature_in=nfeature_in,
+                                          nfeature_out=nfeature_out, device=device)
 
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
     output = x.new_empty((nspec, nbatch, nfeature_out, 2))
@@ -79,7 +85,7 @@ def s2_mm(x, y):
 
 
 @lru_cache(maxsize=32)
-def _setup_s2mm_cuda_kernel(nbatch, nspec, nfeature_in, nfeature_out):
+def _setup_s2mm_cuda_kernel(nbatch, nspec, nfeature_in, nfeature_out, device=0):
     kernel = Template('''
 #define COMPUTE_LMN(s) \
     int l = powf(3.0/4.0 * s, 1.0/3.0) - 0.5; \
@@ -139,7 +145,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out) {
 
 
 @lru_cache(maxsize=32)
-def _setup_s2mm_gradx_cuda_kernel(nbatch, nspec, nl, nfeature_in, nfeature_out):
+def _setup_s2mm_gradx_cuda_kernel(nbatch, nspec, nl, nfeature_in, nfeature_out, device=0):
     kernel = Template('''
 #define COMPUTE_LM(s) \
     int l = powf(s, 0.5); \
@@ -195,7 +201,7 @@ __global__ void main_(const float* grad_z, const float* y, float* grad_x) {
 
 
 @lru_cache(maxsize=32)
-def _setup_s2mm_grady_cuda_kernel(nbatch, nspec, nl, nfeature_in, nfeature_out):
+def _setup_s2mm_grady_cuda_kernel(nbatch, nspec, nl, nfeature_in, nfeature_out, device=0):
     kernel = Template('''
 #define COMPUTE_LM(s) \
     int l = powf(s, 0.5); \
