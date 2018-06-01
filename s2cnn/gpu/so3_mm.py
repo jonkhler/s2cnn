@@ -62,8 +62,9 @@ def so3_mm(x, y):
     nl = round((3 / 4 * nspec) ** (1 / 3))
     assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
+    device = torch.cuda.current_device()
     cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True,
-                                           trans_y_spec=True)
+                                           trans_y_spec=True, device=device)
 
     output = x.new_empty((nspec, nbatch, nfeature_out, 2))
     cuda_kernel(x, y, output)  # [l * m * n, batch, feature_out, complex]
