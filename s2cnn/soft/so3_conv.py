@@ -4,7 +4,7 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules import Module
 
-from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
+from .so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn import so3_mm
 from s2cnn import so3_rft
 

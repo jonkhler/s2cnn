@@ -11,7 +11,7 @@ x = torch.randn(2 * b_in, 2 * b_in, 2 * b_in, dtype=torch.float, device="cuda") 
 
 
 # Fast version
-from s2cnn.soft.gpu.so3_fft import so3_rfft
+from s2cnn.soft.so3_fft import so3_rfft
 
 y1 = so3_rfft(x, b_out=b_out)
 

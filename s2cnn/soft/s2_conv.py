@@ -4,8 +4,8 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules import Module
 
-from .gpu.s2_fft import S2_fft_real
-from .gpu.so3_fft import SO3_ifft_real
+from .s2_fft import S2_fft_real
+from .so3_fft import SO3_ifft_real
 from s2cnn import s2_mm
 from s2cnn import s2_rft
 
