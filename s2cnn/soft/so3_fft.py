@@ -2,7 +2,6 @@
 import math
 from functools import lru_cache
 import torch
-import s2cnn.utils.cuda as cuda_utils
 from s2cnn.utils.decorator import cached_dirpklgz
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
@@ -340,6 +339,7 @@ __global__ void main_(const float* in, const float* wig, float* out)
     }
 }
 '''
+    import s2cnn.utils.cuda as cuda_utils
     kernel = cuda_utils.compile_kernel(kernel, b'so3fft.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
@@ -428,6 +428,7 @@ __global__ void main_(const float* in, const float* wig, float* out)
     }
 }
 '''
+    import s2cnn.utils.cuda as cuda_utils
     kernel = cuda_utils.compile_kernel(kernel, b'so3ifft.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
