@@ -5,7 +5,7 @@ from torch.nn.parameter import Parameter
 from torch.nn.modules import Module
 
 from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
-from s2cnn.gpu.so3_mm import SO3_mm
+from s2cnn import so3_mm
 from s2cnn import so3_rft
 
 
@@ -47,7 +47,7 @@ class SO3Convolution(Module):
         y = so3_rft(self.kernel * self.scaling, self.b_out, self.grid)  # [l * m * n, feature_in, feature_out, complex]
         assert x.size(0) == y.size(0)
         assert x.size(2) == y.size(1)
-        z = SO3_mm()(x, y)  # [l * m * n, batch, feature_out, complex]
+        z = so3_mm(x, y)  # [l * m * n, batch, feature_out, complex]
         assert z.size(0) == x.size(0)
         assert z.size(1) == x.size(1)
         assert z.size(2) == y.size(2)
