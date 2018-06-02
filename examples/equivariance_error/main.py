@@ -12,14 +12,16 @@ import torch
 from s2cnn import s2_equatorial_grid, S2Convolution
 from s2cnn import so3_equatorial_grid, SO3Convolution
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 # Define the two convolutions
 s2_grid = s2_equatorial_grid(max_beta=0, n_alpha=64, n_beta=1)
 s2_conv = S2Convolution(nfeature_in=12, nfeature_out=15, b_in=64, b_out=32, grid=s2_grid)
-s2_conv.cuda()
+s2_conv.to(device)
 
 so3_grid = so3_equatorial_grid(max_beta=0, max_gamma=0, n_alpha=64, n_beta=1, n_gamma=1)
 so3_conv = SO3Convolution(nfeature_in=15, nfeature_out=21, b_in=32, b_out=24, grid=so3_grid)
-so3_conv.cuda()
+so3_conv.to(device)
 
 def phi(x):
     x = s2_conv(x)
@@ -33,7 +35,7 @@ def rot(x, angle):
     return torch.cat([x[:, :, :, n:], x[:, :, :, :n]], dim=3)
 
 # Create random input
-x = torch.randn(1, 12, 128, 128).cuda() # [batch, feature, beta, alpha]
+x = torch.randn(1, 12, 128, 128).to(device) # [batch, feature, beta, alpha]
 
 y = phi(x)
 y1 = rot(phi(x), angle=45)
