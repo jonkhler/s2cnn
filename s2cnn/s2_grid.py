@@ -33,7 +33,7 @@ def s2_equatorial_grid(max_beta=0, n_alpha=32, n_beta=1):
 def s2_soft_grid(b):
     beta = (np.arange(2 * b) + 0.5) / (2 * b) * np.pi
     alpha = np.linspace(start=0, stop=2 * np.pi, num=2 * b, endpoint=False)
-    B, A = np.meshgrid(alpha, beta, indexing='ij')
+    B, A = np.meshgrid(beta, alpha, indexing='ij')
     B = B.flatten()
     A = A.flatten()
     grid = np.stack((B, A), axis=1)
