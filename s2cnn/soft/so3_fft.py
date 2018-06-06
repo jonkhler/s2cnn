@@ -3,7 +3,6 @@ import math
 from functools import lru_cache
 import torch
 import torch.cuda
-import s2cnn.utils.cuda as cuda_utils
 from s2cnn.utils.decorator import cached_dirpklgz
 
 
