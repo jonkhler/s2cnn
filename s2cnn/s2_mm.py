@@ -3,18 +3,71 @@ from functools import lru_cache
 import torch
 import torch.cuda
 from string import Template
-import s2cnn.utils.cuda as cuda_utils
+
+# TODO simplify the cuda code like it was done in SO3_mm using only one code for the kernel
 
 
-class S2_mm(torch.autograd.Function):
+def s2_mm(x, y):
+    '''
+    :param x: [l * m,     batch,      feature_in,  complex]
+    :param y: [l * m,     feature_in, feature_out, complex]
+    :return:  [l * m * n, batch,      feature_out, complex]
+    '''
+    from s2cnn.utils.complex import complex_mm
+
+    assert y.size(3) == 2
+    assert x.size(3) == 2
+    nbatch = x.size(1)
+    nfeature_in = x.size(2)
+    nfeature_out = y.size(2)
+    assert y.size(1) == nfeature_in
+    nspec = x.size(0)
+    assert y.size(0) == nspec
+
+    if x.is_cuda:
+        return _cuda_S2_mm()(x, y)
+
+    nl = round(nspec**0.5)
+
+    Fz_list = []
+    begin = 0
+    for l in range(nl):
+        L = 2 * l + 1
+        size = L
+
+        Fx = x[begin:begin+size]  # [m, batch,      feature_in,  complex]
+        Fy = y[begin:begin+size]  # [m, feature_in, feature_out, complex]
+
+        Fx = Fx.view(L * nbatch, nfeature_in, 2)  # [m * batch, feature_in, complex]
+
+        Fy = Fy.transpose(0, 1)  # [feature_in, m, feature_out, complex]
+        Fy = Fy.contiguous()
+        Fy = Fy.view(nfeature_in, L * nfeature_out, 2)  # [feature_in, m * feature_out, complex]
+
+        Fz = complex_mm(Fx, Fy, conj_y=True)  # [m_x * batch, m_y * feature_out, complex] m_x -> m, m_y -> n
+        Fz = Fz.view(L, nbatch, L, nfeature_out, 2)  # [m, batch, n, feature_out, complex]
+        Fz = Fz.transpose(1, 2)  # [m, n, batch, feature_out, complex]
+        Fz = Fz.contiguous()
+        Fz = Fz.view(L * L, nbatch, nfeature_out, 2)  # [m * n, batch, feature_out, complex]
+
+        Fz_list.append(Fz)
+
+        begin += size
+
+    z = torch.cat(Fz_list, 0)  # [l * m * n, batch, feature_out, complex]
+    return z
+
+
+class _cuda_S2_mm(torch.autograd.Function):
     def __init__(self):  # pylint: disable=W0235
-        super(S2_mm, self).__init__()
+        super().__init__()
 
     def forward(self, x, y):  # pylint: disable=W
         self.save_for_backward(x, y)
-        return s2_mm(x, y)
+        return _cuda_s2_mm(x, y)
 
     def backward(self, gradz):  # pylint: disable=W
+        import s2cnn.utils.cuda as cuda_utils
         x, y = self.saved_tensors
         nl = round(x.size(0) ** 0.5)
         nbatch = x.size(1)
@@ -49,12 +102,13 @@ class S2_mm(torch.autograd.Function):
         return gradx, grady
 
 
-def s2_mm(x, y):
+def _cuda_s2_mm(x, y):
     '''
     :param x: [l * m,     batch,      feature_in,  complex]
     :param y: [l * m,     feature_in, feature_out, complex]
     :return:  [l * m * n, batch,      feature_out, complex]
     '''
+    import s2cnn.utils.cuda as cuda_utils
     assert x.is_cuda and x.dtype == torch.float32
     assert y.is_cuda and y.dtype == torch.float32
     assert y.size(3) == 2
@@ -141,6 +195,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out) {
                  'nfeature_in': nfeature_in,
                  'nfeature_out': nfeature_out})
 
+    import s2cnn.utils.cuda as cuda_utils
     return cuda_utils.compile_kernel(kernel, b's2mm.cu', 'main_')
 
 
@@ -197,6 +252,7 @@ __global__ void main_(const float* grad_z, const float* y, float* grad_x) {
                  'nfeature_in': nfeature_in,
                  'nfeature_out': nfeature_out})
 
+    import s2cnn.utils.cuda as cuda_utils
     return cuda_utils.compile_kernel(kernel, b's2mm_gradx.cu', 'main_')
 
 
@@ -253,4 +309,19 @@ __global__ void main_(const float* grad_z, const float* x, float* grad_y) {
                  'nfeature_in': nfeature_in,
                  'nfeature_out': nfeature_out})
 
+    import s2cnn.utils.cuda as cuda_utils
     return cuda_utils.compile_kernel(kernel, b's2mm_grady.cu', 'main_')
+
+
+def test_compare_cuda_cpu():
+    x = torch.rand(1+3+5+7, 2, 3, 2)  # [l * m,     batch,      feature_in,  complex]
+    y = torch.rand(1+3+5+7, 3, 5, 2)  # [l * m,     feature_in, feature_out, complex]
+    z1 = s2_mm(x, y)
+    z2 = s2_mm(x.cuda(), y.cuda()).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+if __name__ == "__main__":
+    test_compare_cuda_cpu()

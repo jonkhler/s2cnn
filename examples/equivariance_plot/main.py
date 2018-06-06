@@ -47,20 +47,22 @@ def plot(x, text, normalize=False):
 
 
 def main():
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
     # load image
     x = imread("earth128.jpg").astype(np.float32).transpose((2, 0, 1)) / 255
     b = 64
-    x = torch.tensor(x, dtype=torch.float, device="cuda")
+    x = torch.tensor(x, dtype=torch.float, device=device)
     x = x.view(1, 3, 2 * b, 2 * b)
 
     # equivariant transformation
     s2_grid = s2_near_identity_grid(max_beta=0.2, n_alpha=12, n_beta=1)
     s2_conv = S2Convolution(3, 50, b_in=b, b_out=b, grid=s2_grid)
-    s2_conv.cuda()
+    s2_conv.to(device)
 
     so3_grid = so3_near_identity_grid(max_beta=0.2, n_alpha=12, n_beta=1)
     so3_conv = SO3Convolution(50, 1, b_in=b, b_out=b, grid=so3_grid)
-    so3_conv.cuda()
+    so3_conv.to(device)
 
     def phi(x):
         x = s2_conv(x)

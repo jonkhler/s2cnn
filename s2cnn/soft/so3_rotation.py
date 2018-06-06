@@ -2,7 +2,7 @@
 import torch
 import numpy as np
 
-from .gpu.so3_fft import SO3_fft_real, SO3_ifft_real
+from .so3_fft import SO3_fft_real, SO3_ifft_real
 from s2cnn.utils.complex import complex_mm
 from functools import lru_cache
 from s2cnn.utils.decorator import cached_dirpklgz
