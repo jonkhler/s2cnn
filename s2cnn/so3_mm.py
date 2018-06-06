@@ -2,6 +2,7 @@
 import math
 from functools import lru_cache
 import torch
+import torch.cuda
 
 
 def so3_mm(x, y):
@@ -21,8 +22,8 @@ def so3_mm(x, y):
     assert y.size(1) == nfeature_in
     nspec = x.size(0)
     assert y.size(0) == nspec
-    nl = math.ceil((3/4 * nspec)**(1/3))
-    assert nspec == nl * (4 * nl**2 - 1) // 3
+    nl = math.ceil((3 / 4 * nspec) ** (1 / 3))
+    assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
     if x.is_cuda:
         return _cuda_SO3_mm()(x, y)
@@ -33,8 +34,8 @@ def so3_mm(x, y):
         L = 2 * l + 1
         size = L ** 2
 
-        Fx = x[begin:begin+size]  # [m * n,   batch,    feature_in,  complex]
-        Fy = y[begin:begin+size]  # [m * n, feature_in, feature_out, complex]
+        Fx = x[begin:begin + size]  # [m * n,   batch,    feature_in,  complex]
+        Fy = y[begin:begin + size]  # [m * n, feature_in, feature_out, complex]
 
         Fx = Fx.view(L, L, nbatch, nfeature_in, 2)  # [m, n, batch, feature_in, complex]
         Fx = Fx.transpose(0, 1)  # [n, m, batch, feature_in, complex]
@@ -80,11 +81,13 @@ class _cuda_SO3_mm(torch.autograd.Function):
         assert y.size(1) == nfeature_in
         nspec = x.size(0)
         assert y.size(0) == nspec
-        nl = round((3/4 * nspec)**(1/3))
-        assert nspec == nl * (4 * nl**2 - 1) // 3
+        nl = round((3 / 4 * nspec) ** (1 / 3))
+        assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
         self.save_for_backward(x, y)
-        cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True, trans_y_spec=True)
+        device = torch.cuda.current_device()
+        cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True,
+                                               trans_y_spec=True, device=device)
 
         output = x.new_empty((nspec, nbatch, nfeature_out, 2))
         cuda_kernel(x, y, output)  # [l * m * n, batch, feature_out, complex]
@@ -98,19 +101,22 @@ class _cuda_SO3_mm(torch.autograd.Function):
         nfeature_in = x.size(2)
         nfeature_out = y.size(2)
 
-        nl = round((3/4 * nspec)**(1/3))
-        assert nspec == nl * (4 * nl**2 - 1) // 3
+        nl = round((3 / 4 * nspec) ** (1 / 3))
+        assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
         gradx = grady = None
 
+        device = torch.cuda.current_device()
         if self.needs_input_grad[0]:
-            gradx_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_in, nk=nfeature_out, trans_y_feature=True)
+            gradx_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_in, nk=nfeature_out,
+                                                         trans_y_feature=True, device=device)
             gradx = gradz.new_empty((nspec, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(gradz, y, gradx)
 
         if self.needs_input_grad[1]:
-            grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch, trans_out_feature=True,
-                                                         conj_x=True, trans_x_spec=True, trans_x_feature=True)
+            grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch,
+                                                         trans_out_feature=True, conj_x=True, trans_x_spec=True,
+                                                         trans_x_feature=True, device=device)
             grady = gradz.new_empty((nspec, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(gradz, x, grady)
 
@@ -122,7 +128,7 @@ def _setup_so3mm_cuda_kernel(nl, ni, nj, nk,
                              conj_x=False, conj_y=False,
                              trans_x_spec=False, trans_x_feature=False,
                              trans_y_spec=False, trans_y_feature=False,
-                             trans_out_feature=False):
+                             trans_out_feature=False, device=0):
     '''
     return a function that computes
         out[l*m*n, i, j] = sum_k sum_p x[l*m*p, i, k] y[l*p*n, k, j]
@@ -252,6 +258,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
                grid=(math.ceil((2 * nl - 1) * nj / 32), math.ceil((2 * nl - 1) * ni / 32), nl),
                args=[x.contiguous().data_ptr(), y.contiguous().data_ptr(), output.data_ptr()],
                stream=stream)
+
     return fun
 
 
