@@ -3,4 +3,9 @@
 __pycache__
 build
 dist
+<<<<<<< HEAD
 .idea
+=======
+tests
+*cache
+>>>>>>> pr/1

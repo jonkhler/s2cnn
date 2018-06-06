@@ -2,7 +2,6 @@
 import math
 from functools import lru_cache
 import torch
-import s2cnn.utils.cuda as cuda_utils
 from s2cnn.utils.decorator import cached_dirpklgz
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
@@ -13,7 +12,6 @@ def so3_fft(x, for_grad=False, b_out=None):
     :param x: [..., beta, alpha, gamma, complex]
     :return: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2, x.size()
     b_in = x.size(-2) // 2
     assert x.size(-2) == 2 * b_in
@@ -39,15 +37,23 @@ def _so3_fft(x, for_grad, b_in, b_out):
     nspec = b_out * (4 * b_out**2 - 1) // 3
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
-    cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m * n]
 
     x = torch.fft(x, 2)  # [batch, beta, m, n, complex]
 
     output = x.new_empty((nspec, nbatch, 2))
-    cuda_kernel(x, wigner, output)  # [l * m * n, batch, complex]
+    if x.is_cuda and x.dtype == torch.float32:
+        cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False)
+        cuda_kernel(x, wigner, output)  # [l * m * n, batch, complex]
+    else:
+        for l in range(b_out):
+            s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
+            xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
+            xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
+            out = torch.einsum("bmn,zbmnc->mnzc", (wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1), xx))
+            output[s] = out.view((2 * l + 1) ** 2, -1, 2)
 
-    return output
+    return output  # [l * m * n, batch, complex]
 
 
 def so3_rfft(x, for_grad=False, b_out=None):
@@ -55,7 +61,6 @@ def so3_rfft(x, for_grad=False, b_out=None):
     :param x: [..., beta, alpha, gamma]
     :return: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda and x.dtype == torch.float32
     b_in = x.size(-1) // 2
     assert x.size(-1) == 2 * b_in
     assert x.size(-2) == 2 * b_in
@@ -81,21 +86,29 @@ def _so3_rfft(x, for_grad, b_in, b_out):
     nbatch = x.size(0)
 
     wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type, device_index=x.device.index)
-    cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True)
-
-    y = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
 
     output = x.new_empty((nspec, nbatch, 2))
-    cuda_kernel(y, wigner, output)  # [l * m * n, batch, complex]
+    if x.is_cuda and x.dtype == torch.float32:
+        x = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
+        cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True)
+        cuda_kernel(x, wigner, output)
+    else:
+        # TODO use torch.rfft
+        x = torch.fft(torch.stack((x, torch.zeros_like(x)), dim=-1), 2)
+        for l in range(b_out):
+            s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
+            xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
+            xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
+            out = torch.einsum("bmn,zbmnc->mnzc", (wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1), xx))
+            output[s] = out.view((2 * l + 1) ** 2, -1, 2)
 
-    return output
+    return output  # [l * m * n, batch, complex]
 
 
 def so3_ifft(x, for_grad=False, b_out=None):
     '''
     :param x: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
     b_in = round((3/4 * nspec)**(1/3))
@@ -121,10 +134,21 @@ def _so3_ifft(x, for_grad, b_in, b_out):
     nbatch = x.size(1)
 
     wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m * n] (2 * b_out, nspec)
-    cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
-    cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
+    if x.is_cuda and x.dtype == torch.float32:
+        cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False)
+        cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
+    else:
+        output.fill_(0)
+        for l in range(b_in):
+            s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
+            out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
+            output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
+            if l > 0:
+                output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
+                output[:, :, :l + 1, -l:] += out[:, :, -l - 1:, :l]
+                output[:, :, -l:, -l:] += out[:, :, :l, :l]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     return output
@@ -134,7 +158,6 @@ def so3_rifft(x, for_grad=False, b_out=None):
     '''
     :param x: [l * m * n, ..., complex]
     '''
-    assert x.is_cuda and x.dtype == torch.float32
     assert x.size(-1) == 2
     nspec = x.size(0)
     b_in = round((3/4 * nspec)**(1/3))
@@ -161,10 +184,22 @@ def _so3_rifft(x, for_grad, b_in, b_out):
     nbatch = x.size(1)
 
     wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)  # [beta, l * m * n] (2 * b_out, nspec)
-    cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True)
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
-    cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
+    if x.is_cuda and x.dtype == torch.float32:
+        cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True)
+        cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
+    else:
+        # TODO can be optimized knowing that the output is real, like in _setup_so3ifft_cuda_kernel(real_output=True)
+        output.fill_(0)
+        for l in range(b_in):
+            s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
+            out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
+            output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
+            if l > 0:
+                output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
+                output[:, :, :l + 1, -l:] += out[:, :, -l - 1:, :l]
+                output[:, :, -l:, -l:] += out[:, :, :l, :l]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     output = output[..., 0]  # [batch, beta, alpha, gamma]
@@ -304,6 +339,7 @@ __global__ void main_(const float* in, const float* wig, float* out)
     }
 }
 '''
+    import s2cnn.utils.cuda as cuda_utils
     kernel = cuda_utils.compile_kernel(kernel, b'so3fft.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
@@ -392,6 +428,7 @@ __global__ void main_(const float* in, const float* wig, float* out)
     }
 }
 '''
+    import s2cnn.utils.cuda as cuda_utils
     kernel = cuda_utils.compile_kernel(kernel, b'so3ifft.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
@@ -432,3 +469,48 @@ class SO3_ifft_real(torch.autograd.Function):
 
     def backward(self, grad_output):  # pylint: disable=W
         return so3_rfft(grad_output, for_grad=True, b_out=self.b_in)
+
+
+def test_so3fft_cuda_cpu():
+    x = torch.rand(1, 2, 12, 12, 12, 2)  # [..., beta, alpha, gamma, complex]
+    z1 = so3_fft(x, b_out=5)
+    z2 = so3_fft(x.cuda(), b_out=5).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+def test_so3rfft_cuda_cpu():
+    x = torch.rand(14, 14, 14)  # [..., beta, alpha, gamma]
+    z1 = so3_rfft(x, b_out=5)
+    z2 = so3_rfft(x.cuda(), b_out=5).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+def test_so3ifft_cuda_cpu():
+    b = 8
+    x = torch.rand(b * (4 * b**2 - 1) // 3, 2)  # [l * m * n, ..., complex]
+    z1 = so3_ifft(x, b_out=9)
+    z2 = so3_ifft(x.cuda(), b_out=9).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+def test_so3rifft_cuda_cpu():
+    x = torch.rand(14, 14, 14)  # [..., beta, alpha, gamma]
+    x = so3_rfft(x)
+    z1 = so3_rifft(x, b_out=9)
+    z2 = so3_rifft(x.cuda(), b_out=9).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+if __name__ == "__main__":
+    test_so3fft_cuda_cpu()
+    test_so3rfft_cuda_cpu()
+    test_so3ifft_cuda_cpu()
+    test_so3rifft_cuda_cpu()

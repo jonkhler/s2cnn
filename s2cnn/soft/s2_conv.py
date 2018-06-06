@@ -4,9 +4,9 @@ import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules import Module
 
-from .gpu.s2_fft import S2_fft_real
-from .gpu.so3_fft import SO3_ifft_real
-from s2cnn.gpu.s2_mm import S2_mm
+from .s2_fft import S2_fft_real
+from .so3_fft import SO3_ifft_real
+from s2cnn import s2_mm
 from s2cnn import s2_rft
 
 
@@ -39,7 +39,7 @@ class S2Convolution(Module):
         assert x.size(3) == 2 * self.b_in
         x = S2_fft_real(b_out=self.b_out)(x)  # [l * m, batch, feature_in, complex]
         y = s2_rft(self.kernel * self.scaling, self.b_out, self.grid)  # [l * m, feature_in, feature_out, complex]
-        z = S2_mm()(x, y)  # [l * m * n, batch, feature_out, complex]
+        z = s2_mm(x, y)  # [l * m * n, batch, feature_out, complex]
         z = SO3_ifft_real()(z)  # [batch, feature_out, beta, alpha, gamma]
 
         z = z + self.bias

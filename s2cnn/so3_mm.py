@@ -2,16 +2,94 @@
 import math
 from functools import lru_cache
 import torch
-import s2cnn.utils.cuda as cuda_utils
 
 
-class SO3_mm(torch.autograd.Function):
+def so3_mm(x, y):
+    '''
+    :param x: [l * m * n,   batch,    feature_in,  complex]
+    :param y: [l * m * n, feature_in, feature_out, complex]
+    :return:  [l * m * n,   batch,    feature_out, complex]
+    '''
+    from s2cnn.utils.complex import complex_mm
+    import math
+
+    assert y.size(3) == 2
+    assert x.size(3) == 2
+    nbatch = x.size(1)
+    nfeature_in = x.size(2)
+    nfeature_out = y.size(2)
+    assert y.size(1) == nfeature_in
+    nspec = x.size(0)
+    assert y.size(0) == nspec
+    nl = math.ceil((3/4 * nspec)**(1/3))
+    assert nspec == nl * (4 * nl**2 - 1) // 3
+
+    if x.is_cuda:
+        return _cuda_SO3_mm()(x, y)
+
+    Fz_list = []
+    begin = 0
+    for l in range(nl):
+        L = 2 * l + 1
+        size = L ** 2
+
+        Fx = x[begin:begin+size]  # [m * n,   batch,    feature_in,  complex]
+        Fy = y[begin:begin+size]  # [m * n, feature_in, feature_out, complex]
+
+        Fx = Fx.view(L, L, nbatch, nfeature_in, 2)  # [m, n, batch, feature_in, complex]
+        Fx = Fx.transpose(0, 1)  # [n, m, batch, feature_in, complex]
+        Fx = Fx.transpose(0, 2)  # [batch, m, n, feature_in, complex]
+        Fx = Fx.transpose(2, 3)  # [batch, m, feature_in, n, complex]
+        Fx = Fx.contiguous()
+        Fx = Fx.view(nbatch * L, nfeature_in * L, 2)  # [batch * m, feature_in * n, complex]
+
+        Fy = Fy.view(L, L, nfeature_in, nfeature_out, 2)  # [m, n, feature_in, feature_out, complex]
+        Fy = Fy.transpose(0, 2)  # [feature_in, n, m, feature_out, complex]
+        Fy = Fy.contiguous()
+        Fy = Fy.view(nfeature_in * L, L * nfeature_out, 2)  # [feature_in * n, m * feature_out, complex]
+
+        Fz = complex_mm(Fx, Fy, conj_y=True)  # [batch * m_x, m_y * feature_out, complex] m_x -> m, m_y -> n
+        Fz = Fz.view(nbatch, L * L, nfeature_out, 2)  # [batch, m * n, feature_out, complex]
+        Fz = Fz.transpose(0, 1)  # [m * n, batch, feature_out, complex]
+
+        Fz_list.append(Fz)
+
+        begin += size
+
+    z = torch.cat(Fz_list, 0)  # [l * m * n, batch, feature_out, complex]
+    return z
+
+
+class _cuda_SO3_mm(torch.autograd.Function):
     def __init__(self):  # pylint: disable=W0235
-        super(SO3_mm, self).__init__()
+        super().__init__()
 
     def forward(self, x, y):  # pylint: disable=W
+        '''
+        :param x: [l * m * n, batch,      feature_in,  complex]
+        :param y: [l * m * n, feature_in, feature_out, complex]
+        :return:  [l * m * n, batch,      feature_out, complex]
+        '''
+        assert x.is_cuda and x.dtype == torch.float32
+        assert y.is_cuda and y.dtype == torch.float32
+        assert y.size(3) == 2
+        assert x.size(3) == 2
+        nbatch = x.size(1)
+        nfeature_in = x.size(2)
+        nfeature_out = y.size(2)
+        assert y.size(1) == nfeature_in
+        nspec = x.size(0)
+        assert y.size(0) == nspec
+        nl = round((3/4 * nspec)**(1/3))
+        assert nspec == nl * (4 * nl**2 - 1) // 3
+
         self.save_for_backward(x, y)
-        return so3_mm(x, y)
+        cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True, trans_y_spec=True)
+
+        output = x.new_empty((nspec, nbatch, nfeature_out, 2))
+        cuda_kernel(x, y, output)  # [l * m * n, batch, feature_out, complex]
+
+        return output
 
     def backward(self, gradz):  # pylint: disable=W
         x, y = self.saved_tensors
@@ -37,33 +115,6 @@ class SO3_mm(torch.autograd.Function):
             grady_cuda_kernel(gradz, x, grady)
 
         return gradx, grady
-
-
-def so3_mm(x, y):
-    '''
-    :param x: [l * m * n, batch,      feature_in,  complex]
-    :param y: [l * m * n, feature_in, feature_out, complex]
-    :return:  [l * m * n, batch,      feature_out, complex]
-    '''
-    assert x.is_cuda and x.dtype == torch.float32
-    assert y.is_cuda and y.dtype == torch.float32
-    assert y.size(3) == 2
-    assert x.size(3) == 2
-    nbatch = x.size(1)
-    nfeature_in = x.size(2)
-    nfeature_out = y.size(2)
-    assert y.size(1) == nfeature_in
-    nspec = x.size(0)
-    assert y.size(0) == nspec
-    nl = round((3/4 * nspec)**(1/3))
-    assert nspec == nl * (4 * nl**2 - 1) // 3
-
-    cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True, trans_y_spec=True)
-
-    output = x.new_empty((nspec, nbatch, nfeature_out, 2))
-    cuda_kernel(x, y, output)  # [l * m * n, batch, feature_out, complex]
-
-    return output
 
 
 @lru_cache(maxsize=32)
@@ -191,6 +242,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
     }
 }
 '''
+    import s2cnn.utils.cuda as cuda_utils
     kernel = cuda_utils.compile_kernel(kernel, b'so3_mm.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
@@ -201,3 +253,17 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
                args=[x.contiguous().data_ptr(), y.contiguous().data_ptr(), output.data_ptr()],
                stream=stream)
     return fun
+
+
+def test_compare_cuda_cpu():
+    x = torch.rand(1+9+25+49, 2, 3, 2)  # [l * m * n, batch,      feature_in,  complex]
+    y = torch.rand(1+9+25+49, 3, 5, 2)  # [l * m * n, feature_in, feature_out, complex]
+    z1 = so3_mm(x, y)
+    z2 = so3_mm(x.cuda(), y.cuda()).cpu()
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    print(q)
+    assert q < 1e-4
+
+
+if __name__ == "__main__":
+    test_compare_cuda_cpu()
