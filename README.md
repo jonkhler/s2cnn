@@ -48,7 +48,7 @@ Please have a look at the [examples](examples).
 Please cite [1] in your work when using this library in your experiments.
 
 ## Feedback
-For questions and comments, feel free to contact us: taco.cohen (gmail), geiger.mario (gmail), jonas (argmin.xyz).
+For questions and comments, feel free to contact us: **geiger.mario (gmail)**, taco.cohen (gmail), jonas (argmin.xyz).
 
 
 ## License
