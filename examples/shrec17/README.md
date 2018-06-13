@@ -3,7 +3,7 @@
 ## Dependencies
 
 To load the dataset SHREC17 we use the libaray `trimesh` and make it work efficiently you will aslo need to install `pyembree`.
-(See on [the trimesh github](https://github.com/mikedh/trimesh#basic-installation) how to install them)
+(See on [the trimesh github](https://github.com/mikedh/trimesh/blob/master/docs/install.rst) how to install them)
 
 ## Training
 ```
