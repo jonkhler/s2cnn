@@ -5,7 +5,7 @@ import pickle
 import numpy as np
 import argparse
 import lie_learn.spaces.S2 as S2
-from tensorflow.examples.tutorials.mnist import input_data
+from torchvision import datasets
 
 
 NORTHPOLE_EPSILON = 1e-3
@@ -209,7 +209,15 @@ def main():
     args = parser.parse_args()
 
     print("getting mnist data")
-    mnist = input_data.read_data_sets(args.mnist_data_folder, one_hot=False)
+    trainset = datasets.MNIST(root=args.mnist_data_folder, train=True, download=True)
+    testset = datasets.MNIST(root=args.mnist_data_folder, train=False, download=True)
+    mnist_train = {}
+    mnist_train['images'] = trainset.train_data.numpy()
+    mnist_train['labels'] = trainset.train_labels.numpy()
+    mnist_test = {}
+    mnist_test['images'] = testset.test_data.numpy()
+    mnist_test['labels'] = testset.test_labels.numpy()
+    
     grid = get_projection_grid(b=args.bandwidth)
 
     # result
@@ -217,11 +225,11 @@ def main():
 
     no_rotate = {"train": args.no_rotate_train, "test": args.no_rotate_test}
 
-    for label, data in zip(["train", "test"], [mnist.train, mnist.test]):
+    for label, data in zip(["train", "test"], [mnist_train, mnist_test]):
 
         print("projecting {0} data set".format(label))
         current = 0
-        signals = data.images.reshape(-1, 28, 28).astype(np.float64)
+        signals = data['images'].reshape(-1, 28, 28).astype(np.float64)
         n_signals = signals.shape[0]
         projections = np.ndarray(
             (signals.shape[0], 2 * args.bandwidth, 2 * args.bandwidth),
@@ -244,7 +252,7 @@ def main():
         print("")
         dataset[label] = {
             'images': projections,
-            'labels': data.labels
+            'labels': data['labels']
         }
     print("writing pickle")
     with gzip.open(args.output_file, 'wb') as f:
