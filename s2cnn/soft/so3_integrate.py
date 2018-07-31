@@ -6,6 +6,8 @@ from s2cnn.utils.decorator import show_running
 
 def so3_integrate(x):
     """
+    Integrate a signal on SO(3) using the Haar measure
+    
     :param x: [..., beta, alpha, gamma] (..., 2b, 2b, 2b)
     :return y: [...] (...)
     """
