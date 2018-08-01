@@ -198,7 +198,7 @@ __global__ void main_(const float* in, const float* wig, float* out) {
 ''').substitute({'b': b, 'nbatch': nbatch, 'nspec': nspec})
 
     import s2cnn.utils.cuda as cuda_utils
-    return cuda_utils.compile_kernel(kernel, b's2fft.cu', 'main_')
+    return cuda_utils.compile_kernel(kernel, 's2fft.cu', 'main_')
 
 
 @lru_cache(maxsize=32)
@@ -236,7 +236,7 @@ __global__ void main_(const float* in, const float* wig, float* out) {
 ''').substitute({'b': b, 'nbatch': nbatch, 'nl': nl, 'nspec': nl ** 2})
 
     import s2cnn.utils.cuda as cuda_utils
-    return cuda_utils.compile_kernel(kernel, b's2ifft.cu', 'main_')
+    return cuda_utils.compile_kernel(kernel, 's2ifft.cu', 'main_')
 
 
 class S2_fft_real(torch.autograd.Function):

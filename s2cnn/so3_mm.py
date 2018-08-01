@@ -249,7 +249,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out)
 }
 '''
     import s2cnn.utils.cuda as cuda_utils
-    kernel = cuda_utils.compile_kernel(kernel, b'so3_mm.cu', 'main_')
+    kernel = cuda_utils.compile_kernel(kernel, 'so3_mm.cu', 'main_')
     stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
 
     def fun(x, y, output):

@@ -196,7 +196,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out) {
                  'nfeature_out': nfeature_out})
 
     import s2cnn.utils.cuda as cuda_utils
-    return cuda_utils.compile_kernel(kernel, b's2mm.cu', 'main_')
+    return cuda_utils.compile_kernel(kernel, 's2mm.cu', 'main_')
 
 
 @lru_cache(maxsize=32)
@@ -253,7 +253,7 @@ __global__ void main_(const float* grad_z, const float* y, float* grad_x) {
                  'nfeature_out': nfeature_out})
 
     import s2cnn.utils.cuda as cuda_utils
-    return cuda_utils.compile_kernel(kernel, b's2mm_gradx.cu', 'main_')
+    return cuda_utils.compile_kernel(kernel, 's2mm_gradx.cu', 'main_')
 
 
 @lru_cache(maxsize=32)
@@ -310,7 +310,7 @@ __global__ void main_(const float* grad_z, const float* x, float* grad_y) {
                  'nfeature_out': nfeature_out})
 
     import s2cnn.utils.cuda as cuda_utils
-    return cuda_utils.compile_kernel(kernel, b's2mm_grady.cu', 'main_')
+    return cuda_utils.compile_kernel(kernel, 's2mm_grady.cu', 'main_')
 
 
 def test_compare_cuda_cpu():
