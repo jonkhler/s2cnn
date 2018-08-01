@@ -19,7 +19,7 @@ conda create --name cuda9 python=3.6
 conda activate cuda9
 
 # s2cnn deps
-conda install pytorch torchvision cuda90 -c pytorch  
+#conda install pytorch torchvision cuda90 -c pytorch # get correct command line at http://pytorch.org/
 conda install -c anaconda cupy  
 pip install pynvrtc  
 
