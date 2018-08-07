@@ -52,10 +52,17 @@ def _so3_fft(x, for_grad, b_in, b_out):
     else:
         if b_in < b_out:
             output.fill_(0)
-        for l in range(min(b_in, b_out)):
+        for l in range(b_out):
             s = slice(l * (4 * l ** 2 - 1) // 3, l * (4 * l ** 2 - 1) // 3 + (2 * l + 1) ** 2)
-            xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
-            xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
+            l1 = min(l, b_in - 1)  # if b_out > b_in, consider high frequencies as null
+
+            xx = x.new_zeros((x.size(0), x.size(1), 2 * l + 1, 2 * l + 1, 2))
+            xx[:, :, l: l + l1 + 1, l: l + l1 + 1] = x[:, :, :l1 + 1, :l1 + 1]
+            if l1 > 0:
+                xx[:, :, l - l1:l, l: l + l1 + 1] = x[:, :, -l1:, :l1 + 1]
+                xx[:, :, l: l + l1 + 1, l - l1:l] = x[:, :, :l1 + 1, -l1:]
+                xx[:, :, l - l1:l, l - l1:l] = x[:, :, -l1:, -l1:]
+
             out = torch.einsum("bmn,zbmnc->mnzc", (wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1), xx))
             output[s] = out.view((2 * l + 1) ** 2, -1, 2)
 
@@ -104,10 +111,17 @@ def _so3_rfft(x, for_grad, b_in, b_out):
         x = torch.fft(torch.stack((x, torch.zeros_like(x)), dim=-1), 2)
         if b_in < b_out:
             output.fill_(0)
-        for l in range(min(b_in, b_out)):
+        for l in range(b_out):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
-            xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
-            xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
+            l1 = min(l, b_in - 1)  # if b_out > b_in, consider high frequencies as null
+
+            xx = x.new_zeros((x.size(0), x.size(1), 2 * l + 1, 2 * l + 1, 2))
+            xx[:, :, l: l + l1 + 1, l: l + l1 + 1] = x[:, :, :l1 + 1, :l1 + 1]
+            if l1 > 0:
+                xx[:, :, l - l1:l, l: l + l1 + 1] = x[:, :, -l1:, :l1 + 1]
+                xx[:, :, l: l + l1 + 1, l - l1:l] = x[:, :, :l1 + 1, -l1:]
+                xx[:, :, l - l1:l, l - l1:l] = x[:, :, -l1:, -l1:]
+
             out = torch.einsum("bmn,zbmnc->mnzc", (wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1), xx))
             output[s] = out.view((2 * l + 1) ** 2, -1, 2)
 
@@ -151,15 +165,15 @@ def _so3_ifft(x, for_grad, b_in, b_out):
         cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
     else:
         output.fill_(0)
-        for l in range(b_in):
+        for l in range(min(b_in, b_out)):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
             out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
-            l = min(l, b_out - 1)  # if b_out < b_in
-            output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
+            l1 = min(l, b_out - 1)  # if b_out < b_in
+            output[:, :, :l1 + 1, :l1 + 1] += out[:, :, l: l + l1 + 1, l: l + l1 + 1]
             if l > 0:
-                output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
-                output[:, :, :l + 1, -l:] += out[:, :, -l - 1:, :l]
-                output[:, :, -l:, -l:] += out[:, :, :l, :l]
+                output[:, :, -l1:, :l1 + 1] += out[:, :, l - l1: l, l: l + l1 + 1]
+                output[:, :, :l1 + 1, -l1:] += out[:, :, l: l + l1 + 1, l - l1: l]
+                output[:, :, -l1:, -l1:] += out[:, :, l - l1: l, l - l1: l]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     return output
@@ -204,15 +218,15 @@ def _so3_rifft(x, for_grad, b_in, b_out):
     else:
         # TODO can be optimized knowing that the output is real, like in _setup_so3ifft_cuda_kernel(real_output=True)
         output.fill_(0)
-        for l in range(b_in):
+        for l in range(min(b_in, b_out)):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
             out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
-            l = min(l, b_out - 1)  # if b_out < b_in
-            output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
+            l1 = min(l, b_out - 1)  # if b_out < b_in
+            output[:, :, :l1 + 1, :l1 + 1] += out[:, :, l: l + l1 + 1, l: l + l1 + 1]
             if l > 0:
-                output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
-                output[:, :, :l + 1, -l:] += out[:, :, -l - 1:, :l]
-                output[:, :, -l:, -l:] += out[:, :, :l, :l]
+                output[:, :, -l1:, :l1 + 1] += out[:, :, l - l1: l, l: l + l1 + 1]
+                output[:, :, :l1 + 1, -l1:] += out[:, :, l: l + l1 + 1, l - l1: l]
+                output[:, :, -l1:, -l1:] += out[:, :, l - l1: l, l - l1: l]
 
     output = torch.ifft(output, 2) * output.size(-2) ** 2  # [batch, beta, alpha, gamma, complex]
     output = output[..., 0]  # [batch, beta, alpha, gamma]
