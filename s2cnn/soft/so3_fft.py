@@ -1,4 +1,4 @@
-# pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101,E1102
 import math
 from functools import lru_cache
 import torch
@@ -21,7 +21,6 @@ def so3_fft(x, for_grad=False, b_out=None):
     assert x.size(-4) == 2 * b_in
     if b_out is None:
         b_out = b_in
-    assert b_out <= b_in
     batch_size = x.size()[:-4]
 
     x = x.view(-1, 2 * b_in, 2 * b_in, 2 * b_in, 2)  # [batch, beta, alpha, gamma, complex]
@@ -46,11 +45,14 @@ def _so3_fft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
+        assert b_out <= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False, device=device)
         cuda_kernel(x, wigner, output)  # [l * m * n, batch, complex]
     else:
-        for l in range(b_out):
+        if b_in < b_out:
+            output.fill_(0)
+        for l in range(min(b_in, b_out)):
             s = slice(l * (4 * l ** 2 - 1) // 3, l * (4 * l ** 2 - 1) // 3 + (2 * l + 1) ** 2)
             xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
             xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
@@ -71,7 +73,6 @@ def so3_rfft(x, for_grad=False, b_out=None):
     assert x.size(-3) == 2 * b_in
     if b_out is None:
         b_out = b_in
-    assert b_out <= b_in
     batch_size = x.size()[:-3]
 
     x = x.contiguous().view(-1, 2 * b_in, 2 * b_in, 2 * b_in)  # [batch, beta, alpha, gamma]
@@ -93,6 +94,7 @@ def _so3_rfft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
+        assert b_out <= b_in
         x = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True, device=device)
@@ -100,7 +102,9 @@ def _so3_rfft(x, for_grad, b_in, b_out):
     else:
         # TODO use torch.rfft
         x = torch.fft(torch.stack((x, torch.zeros_like(x)), dim=-1), 2)
-        for l in range(b_out):
+        if b_in < b_out:
+            output.fill_(0)
+        for l in range(min(b_in, b_out)):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
             xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
             xx = torch.cat((xx[:, :, :, -l:], xx[:, :, :, :l + 1]), dim=3) if l > 0 else xx[:, :, :, :1]
@@ -120,7 +124,6 @@ def so3_ifft(x, for_grad=False, b_out=None):
     assert nspec == b_in * (4 * b_in ** 2 - 1) // 3
     if b_out is None:
         b_out = b_in
-    assert b_out >= b_in
     batch_size = x.size()[1:-1]
 
     x = x.view(nspec, -1, 2)  # [l * m * n, batch, complex] (nspec, nbatch, 2)
@@ -142,6 +145,7 @@ def _so3_ifft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     if x.is_cuda and x.dtype == torch.float32:
+        assert b_out >= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False, device=device)
         cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
@@ -150,6 +154,7 @@ def _so3_ifft(x, for_grad, b_in, b_out):
         for l in range(b_in):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
             out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
+            l = min(l, b_out - 1)  # if b_out < b_in
             output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
             if l > 0:
                 output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
@@ -170,7 +175,6 @@ def so3_rifft(x, for_grad=False, b_out=None):
     assert nspec == b_in * (4 * b_in ** 2 - 1) // 3
     if b_out is None:
         b_out = b_in
-    assert b_out >= b_in
     batch_size = x.size()[1:-1]
 
     x = x.view(nspec, -1, 2)  # [l * m * n, batch, complex] (nspec, nbatch, 2)
@@ -193,6 +197,7 @@ def _so3_rifft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     if x.is_cuda and x.dtype == torch.float32:
+        assert b_out >= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True, device=device)
         cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
@@ -202,6 +207,7 @@ def _so3_rifft(x, for_grad, b_in, b_out):
         for l in range(b_in):
             s = slice(l * (4 * l**2 - 1) // 3, l * (4 * l**2 - 1) // 3 + (2 * l + 1) ** 2)
             out = torch.einsum("mnzc,bmn->zbmnc", (x[s].view(2 * l + 1, 2 * l + 1, -1, 2), wigner[:, s].view(-1, 2 * l + 1, 2 * l + 1)))
+            l = min(l, b_out - 1)  # if b_out < b_in
             output[:, :, :l + 1, :l + 1] += out[:, :, -l - 1:, -l - 1:]
             if l > 0:
                 output[:, :, -l:, :l + 1] += out[:, :, :l, -l - 1:]
