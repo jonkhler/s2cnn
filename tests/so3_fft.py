@@ -65,10 +65,10 @@ test_inverse2(so3_ifft, so3_fft, 4, 7, torch.device("cpu"))
 if torch.cuda.is_available():
     test_inverse(so3_fft, so3_ifft, 7, 7, torch.device("cuda:0"), True)
     test_inverse(so3_fft, so3_ifft, 7, 5, torch.device("cuda:0"), True)
-    # test_inverse(so3_fft, so3_ifft, 4, 6, torch.device("cuda:0"), True)
+    test_inverse(so3_fft, so3_ifft, 4, 6, torch.device("cuda:0"), True)
 
     test_inverse2(so3_ifft, so3_fft, 7, 7, torch.device("cuda:0"))
-    # test_inverse2(so3_ifft, so3_fft, 5, 4, torch.device("cuda:0"))
+    test_inverse2(so3_ifft, so3_fft, 5, 4, torch.device("cuda:0"))
     test_inverse2(so3_ifft, so3_fft, 4, 7, torch.device("cuda:0"))
 
 from s2cnn.soft.so3_fft import so3_rfft, so3_rifft
@@ -83,8 +83,8 @@ test_inverse2(so3_rifft, so3_rfft, 4, 7, torch.device("cpu"))
 if torch.cuda.is_available():
     test_inverse(so3_rfft, so3_rifft, 7, 7, torch.device("cuda:0"), False)
     test_inverse(so3_rfft, so3_rifft, 5, 4, torch.device("cuda:0"), False)
-    # test_inverse(so3_rfft, so3_rifft, 4, 6, torch.device("cuda:0"), False)
+    test_inverse(so3_rfft, so3_rifft, 4, 6, torch.device("cuda:0"), False)
 
     test_inverse2(so3_rifft, so3_rfft, 7, 7, torch.device("cuda:0"))
-    # test_inverse2(so3_rifft, so3_rfft, 5, 4, torch.device("cuda:0"))
+    test_inverse2(so3_rifft, so3_rfft, 5, 4, torch.device("cuda:0"))
     test_inverse2(so3_rifft, so3_rfft, 4, 7, torch.device("cuda:0"))
