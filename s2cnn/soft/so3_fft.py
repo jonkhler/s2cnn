@@ -45,7 +45,7 @@ def _so3_fft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
-        assert b_out <= b_in
+        # assert b_out <= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=False, device=device)
         cuda_kernel(x, wigner, output)  # [l * m * n, batch, complex]
@@ -101,8 +101,8 @@ def _so3_rfft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
-        assert b_out <= b_in
-        x = torch.rfft(x, 2)  # [batch, beta, m, n, complex]
+        # assert b_out <= b_in
+        x = torch.rfft(x, 2, onesided = True)  # [batch, beta, m, n, complex]
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True, device=device)
         cuda_kernel(x, wigner, output)
@@ -159,7 +159,7 @@ def _so3_ifft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     if x.is_cuda and x.dtype == torch.float32:
-        assert b_out >= b_in
+        # assert b_out >= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=False, device=device)
         cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
@@ -211,7 +211,7 @@ def _so3_rifft(x, for_grad, b_in, b_out):
 
     output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2 * b_out, 2))
     if x.is_cuda and x.dtype == torch.float32:
-        assert b_out >= b_in
+        # assert b_out >= b_in
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3ifft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_output=True, device=device)
         cuda_kernel(x, wigner, output)  # [batch, beta, m, n, complex]
@@ -337,8 +337,9 @@ __global__ void main_(const float* in, const float* wig, float* out)
 #else
         int i = (((batch * 2*B_IN + beta) * 2*B_IN + MOD(m, 2*B_IN)) * 2*B_IN + MOD(n, 2*B_IN)) * 2;
 #endif
-        tileA[threadIdx.y][threadIdx.x][0] = beta < 2*B_IN && batch < NBATCH ? in[i + 0] : 0.0;
-        tileA[threadIdx.y][threadIdx.x][1] = beta < 2*B_IN && batch < NBATCH ? in[i + 1] : 0.0;
+        tileA[threadIdx.y][threadIdx.x][0] = beta < 2*B_IN && batch < NBATCH && m < B_IN && n < B_IN && m > -B_IN && n > -B_IN? in[i + 0] : 0.0;
+        tileA[threadIdx.y][threadIdx.x][1] = beta < 2*B_IN && batch < NBATCH && m < B_IN && n < B_IN && m > -B_IN && n > -B_IN? in[i + 1] : 0.0;
+        // add constraints to m and n to remove aliasing (when b_out > b_in)
 
         beta = tile * 32 + threadIdx.y;
         tileB[threadIdx.y][threadIdx.x] = beta < 2*B_IN && l_min <= l && l < B_OUT ? wig[beta * NSPEC + lmn] : 0.0;
@@ -398,6 +399,7 @@ def _setup_so3ifft_cuda_kernel(b_in, b_out, nbatch, real_output, device=0):
     kernel += '''
 #define MOD(i, n) (((i) + (n)) % (n))
 #define MAX(x, y) ((x) < (y) ? (y) : (x))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define CEIL_DIV(x, y) (((x) + (y) - 1) / (y))
 
 extern "C"
@@ -419,18 +421,20 @@ __global__ void main_(const float* in, const float* wig, float* out)
     float sum_re = 0.0;
     float sum_im = 0.0;
 
-    for (int tile = 0; tile < CEIL_DIV(B_IN - l_min, 32); ++tile) {
+    // will not calculate when l > min(b_in, b_out)-1
+    for (int tile = 0; tile < CEIL_DIV(MIN(B_IN, B_OUT) - l_min, 32); ++tile) {
         __shared__ float tileA[2][32][32];
         __shared__ float tileB[32][32+1];
 
         int l = l_min + tile * 32 + threadIdx.x;
         int lmn = (4 * l*l - 1) * l / 3 + (l+m) * (2 * l + 1) + (l+n);
         int i = (lmn * NBATCH + batch) * 2;
-        tileA[0][threadIdx.y][threadIdx.x] = l < B_IN && batch < NBATCH ? in[i + 0] : 0.0;
-        tileA[1][threadIdx.y][threadIdx.x] = l < B_IN && batch < NBATCH ? in[i + 1] : 0.0;
+        tileA[0][threadIdx.y][threadIdx.x] = l < MIN(B_IN, B_OUT) && batch < NBATCH && m < B_OUT && n < B_OUT && m > -B_OUT && n > -B_OUT? in[i + 0] : 0.0;
+        tileA[1][threadIdx.y][threadIdx.x] = l < MIN(B_IN, B_OUT) && batch < NBATCH && m < B_OUT && n < B_OUT && m > -B_OUT && n > -B_OUT? in[i + 1] : 0.0;
+        // add constraints to m and n to remove aliasing (when b_out > b_in)
 
         int beta = blockIdx.x * 32 + threadIdx.y;
-        tileB[threadIdx.x][threadIdx.y] = l < B_IN && beta < 2*B_OUT ? wig[beta * NSPEC + lmn] : 0.0;
+        tileB[threadIdx.x][threadIdx.y] = l < MIN(B_IN, B_OUT) && beta < 2*B_OUT ? wig[beta * NSPEC + lmn] : 0.0;
 
         __syncthreads();
 
@@ -503,17 +507,17 @@ class SO3_ifft_real(torch.autograd.Function):
 
 def test_so3fft_cuda_cpu():
     x = torch.rand(1, 2, 12, 12, 12, 2)  # [..., beta, alpha, gamma, complex]
-    z1 = so3_fft(x, b_out=5)
-    z2 = so3_fft(x.cuda(), b_out=5).cpu()
+    z1 = so3_fft(x, b_out=9)
+    z2 = so3_fft(x.cuda(), b_out=9).cpu()
     q = (z1 - z2).abs().max().item() / z1.std().item()
     print(q)
     assert q < 1e-4
 
 
 def test_so3rfft_cuda_cpu():
-    x = torch.rand(14, 14, 14)  # [..., beta, alpha, gamma]
-    z1 = so3_rfft(x, b_out=5)
-    z2 = so3_rfft(x.cuda(), b_out=5).cpu()
+    x = torch.rand(12, 12, 12)  # [..., beta, alpha, gamma]
+    z1 = so3_rfft(x, b_out=9)
+    z2 = so3_rfft(x.cuda(), b_out=9).cpu()
     q = (z1 - z2).abs().max().item() / z1.std().item()
     print(q)
     assert q < 1e-4
@@ -522,18 +526,18 @@ def test_so3rfft_cuda_cpu():
 def test_so3ifft_cuda_cpu():
     b = 8
     x = torch.rand(b * (4 * b**2 - 1) // 3, 2)  # [l * m * n, ..., complex]
-    z1 = so3_ifft(x, b_out=9)
-    z2 = so3_ifft(x.cuda(), b_out=9).cpu()
+    z1 = so3_ifft(x, b_out=4)
+    z2 = so3_ifft(x.cuda(), b_out=4).cpu()
     q = (z1 - z2).abs().max().item() / z1.std().item()
     print(q)
     assert q < 1e-4
 
 
 def test_so3rifft_cuda_cpu():
-    x = torch.rand(14, 14, 14)  # [..., beta, alpha, gamma]
+    x = torch.rand(16, 16, 16)  # [..., beta, alpha, gamma]
     x = so3_rfft(x)
-    z1 = so3_rifft(x, b_out=9)
-    z2 = so3_rifft(x.cuda(), b_out=9).cpu()
+    z1 = so3_rifft(x, b_out=4)
+    z2 = so3_rifft(x.cuda(), b_out=4).cpu()
     q = (z1 - z2).abs().max().item() / z1.std().item()
     print(q)
     assert q < 1e-4
