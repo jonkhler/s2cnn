@@ -3,6 +3,7 @@
 Compare so3_ft with so3_fft
 '''
 import torch
+from functools import partial
 
 def test_so3_rfft(b_in, b_out, device):
     x = torch.randn(2 * b_in, 2 * b_in, 2 * b_in, dtype=torch.float, device=device)  # [beta, alpha, gamma]
@@ -88,3 +89,27 @@ if torch.cuda.is_available():
     test_inverse2(so3_rifft, so3_rfft, 7, 7, torch.device("cuda:0"))
     test_inverse2(so3_rifft, so3_rfft, 5, 4, torch.device("cuda:0"))
     test_inverse2(so3_rifft, so3_rfft, 4, 7, torch.device("cuda:0"))
+
+
+
+def compare_cpu_gpu(f, x):
+    z1 = f(x.cpu())
+    z2 = f(x.cuda()).cpu()
+
+    q = (z1 - z2).abs().max().item() / z1.std().item()
+    assert q < 1e-4
+
+for b_in, b_out in [(2, 9), (6, 6), (9, 2), (10, 11), (11, 10)]:
+    x = torch.rand(2 * b_in, 2 * b_in, 2 * b_in, 2)  # [..., beta, alpha, gamma, complex]
+    compare_cpu_gpu(partial(so3_fft, b_out=b_out), x)
+
+    x = torch.rand(2 * b_in, 2 * b_in, 2 * b_in)  # [..., beta, alpha, gamma]
+    compare_cpu_gpu(partial(so3_rfft, b_out=b_out), x)
+
+    x = torch.rand(b_in * (4 * b_in**2 - 1) // 3, 2)  # [l * m * n, ..., complex]
+    compare_cpu_gpu(partial(so3_ifft, b_out=b_out), x)
+
+    x = torch.rand(2 * b_in, 2 * b_in, 2 * b_in)  # [..., beta, alpha, gamma]
+    x = so3_rfft(x)
+    compare_cpu_gpu(partial(so3_rifft, b_out=b_out), x)
+

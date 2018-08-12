@@ -1,4 +1,4 @@
-# pylint: disable=R,C,E1101
+# pylint: disable=R,C,E1101,E1102
 from functools import lru_cache
 import torch
 import torch.cuda
@@ -25,13 +25,6 @@ def s2_fft(x, for_grad=False, b_out=None):
 
     x = x.view(-1, 2 * b_in, 2 * b_in, 2)  # [batch, beta, alpha, complex]
 
-    output = _s2_fft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)  # [l * m, batch, complex]
-    output = output.view(-1, *batch_size, 2)  # [l * m, ..., complex] (nspec, ..., 2)
-
-    return output
-
-
-def _s2_fft(x, for_grad, b_in, b_out):
     '''
     :param x: [batch, beta, alpha, complex] (nbatch, 2 * b_in, 2 * b_in, 2)
     :return: [l * m, batch, complex] (b_out**2, nbatch, 2)
@@ -39,8 +32,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
     nspec = b_out ** 2
     nbatch = x.size(0)
 
-    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device_type=x.device.type,
-                           device_index=x.device.index)
+    wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
     wigner = wigner.view(2 * b_in, -1)  # [beta, l * m] (2 * b_in, nspec)
 
     x = torch.fft(x, 1)  # [batch, beta, m, complex]
@@ -48,8 +40,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
         import s2cnn.utils.cuda as cuda_utils
-        device = torch.cuda.current_device()
-        cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch, device=device)
+        cuda_kernel = _setup_s2fft_cuda_kernel(b=b_in, nspec=nspec, nbatch=nbatch, device=x.device.index)
         stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
         cuda_kernel(block=(1024, 1, 1),
                     grid=(cuda_utils.get_blocks(nspec * nbatch, 1024), 1, 1),
@@ -62,6 +53,7 @@ def _s2_fft(x, for_grad, b_in, b_out):
             xx = torch.cat((x[:, :, -l:], x[:, :, :l + 1]), dim=2) if l > 0 else x[:, :, :1]
             output[s] = torch.einsum("bm,zbmc->mzc", (wigner[:, s], xx))
 
+    output = output.view(-1, *batch_size, 2)  # [l * m, ..., complex] (nspec, ..., 2)
     return output
 
 
@@ -80,26 +72,18 @@ def s2_ifft(x, for_grad=False, b_out=None):
 
     x = x.view(nspec, -1, 2)  # [l * m, batch, complex] (nspec, nbatch, 2)
 
-    output = _s2_ifft(x, for_grad=for_grad, b_in=b_in, b_out=b_out)  # [batch, beta, alpha, complex]
-
-    output = output.view(*batch_size, 2 * b_out, 2 * b_out, 2)
-    return output
-
-
-def _s2_ifft(x, for_grad, b_in, b_out):
     '''
     :param x: [l * m, batch, complex] (b_in**2, nbatch, 2)
     :return: [batch, beta, alpha, complex] (nbatch, 2 b_out, 2 * b_out, 2)
     '''
     nbatch = x.size(1)
 
-    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device_type=x.device.type, device_index=x.device.index)
+    wigner = _setup_wigner(b_out, nl=b_in, weighted=for_grad, device=x.device)
     wigner = wigner.view(2 * b_out, -1)  # [beta, l * m] (2 * b_out, nspec)
 
     if x.is_cuda and x.dtype == torch.float32:
         import s2cnn.utils.cuda as cuda_utils
-        device = torch.cuda.current_device()
-        cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch, device=device)
+        cuda_kernel = _setup_s2ifft_cuda_kernel(b=b_out, nl=b_in, nbatch=nbatch, device=x.device.index)
         stream = cuda_utils.Stream(ptr=torch.cuda.current_stream().cuda_stream)
         output = x.new_empty((nbatch, 2 * b_out, 2 * b_out, 2))
         cuda_kernel(block=(1024, 1, 1),
@@ -117,15 +101,14 @@ def _s2_ifft(x, for_grad, b_in, b_out):
                 output[:, :, -l:] += out[:, :, :l]
 
     output = torch.ifft(output, 1) * output.size(-2)  # [batch, beta, alpha, complex]
-
+    output = output.view(*batch_size, 2 * b_out, 2 * b_out, 2)
     return output
 
 
 @lru_cache(maxsize=32)
-def _setup_wigner(b, nl, weighted, device_type, device_index):
+def _setup_wigner(b, nl, weighted, device):
     dss = _setup_s2_fft(b, nl, weighted)
-    dss = torch.tensor(dss, dtype=torch.float32,
-                       device=torch.device(device_type, device_index))  # [beta, l * m] # pylint: disable=E1102
+    dss = torch.tensor(dss, dtype=torch.float32, device=device)  # [beta, l * m] # pylint: disable=E1102
     return dss.contiguous()
 
 
