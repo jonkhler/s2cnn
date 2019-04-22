@@ -3,12 +3,14 @@ import numpy as np
 import warnings
 
 
-def so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=np.pi / 8, n_alpha=8, n_beta=3, n_gamma=3):
+def so3_near_identity_grid(max_beta=np.pi / 8, max_gamma=2*np.pi, n_alpha=8, n_beta=3, n_gamma=None):
     '''
     :return: rings of rotations around the identity, all points (rotations) in
     a ring are at the same distance from the identity
     size of the kernel = n_alpha * n_beta * n_gamma
     '''
+    if n_gamma is None:
+        n_gamma = n_alpha # similar to regular representations
     beta = np.arange(start=1, stop=n_beta + 1, dtype=np.float) * max_beta / n_beta
     alpha = np.linspace(start=0, stop=2 * np.pi, num=n_alpha, endpoint=False)
     pre_gamma = np.linspace(start=-max_gamma, stop=max_gamma, num=n_gamma, endpoint=True)
