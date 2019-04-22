@@ -13,6 +13,7 @@ import gzip
 import pickle
 import numpy as np
 from torch.autograd import Variable
+import argparse
 
 MNIST_PATH = "s2_mnist.gz"
 
@@ -51,10 +52,10 @@ def load_data(path, batch_size):
     return train_loader, test_loader, train_dataset, test_dataset
 
 
-class S2ConvNet(nn.Module):
+class S2ConvNet_original(nn.Module):
 
     def __init__(self):
-        super(S2ConvNet, self).__init__()
+        super(S2ConvNet_original, self).__init__()
 
         f1 = 20
         f2 = 40
@@ -97,12 +98,105 @@ class S2ConvNet(nn.Module):
         return x
 
 
-def main():
+class S2ConvNet_deep(nn.Module):
+
+    def __init__(self, bandwidth=30):
+        super(S2ConvNet_deep, self).__init__()
+
+        grid_s2    =  s2_near_identity_grid(n_alpha=6, max_beta=np.pi/16, n_beta=1)
+        grid_so3_1 = so3_near_identity_grid(n_alpha=6, max_beta=np.pi/16, n_beta=1, max_gamma=2*np.pi, n_gamma=6)
+        grid_so3_2 = so3_near_identity_grid(n_alpha=6, max_beta=np.pi/ 8, n_beta=1, max_gamma=2*np.pi, n_gamma=6)
+        grid_so3_3 = so3_near_identity_grid(n_alpha=6, max_beta=np.pi/ 4, n_beta=1, max_gamma=2*np.pi, n_gamma=6)
+        grid_so3_4 = so3_near_identity_grid(n_alpha=6, max_beta=np.pi/ 2, n_beta=1, max_gamma=2*np.pi, n_gamma=6)
+
+        self.convolutional = nn.Sequential(
+            S2Convolution(
+                nfeature_in  = 1,
+                nfeature_out = 8,
+                b_in  = bandwidth,
+                b_out = bandwidth,
+                grid=grid_s2),
+            nn.ReLU(inplace=False),
+            SO3Convolution(
+                nfeature_in  =  8,
+                nfeature_out = 16,
+                b_in  = bandwidth,
+                b_out = bandwidth//2,
+                grid=grid_so3_1),
+            nn.ReLU(inplace=False),
+
+            SO3Convolution(
+                nfeature_in  = 16,
+                nfeature_out = 16,
+                b_in  = bandwidth//2,
+                b_out = bandwidth//2,
+                grid=grid_so3_2),
+            nn.ReLU(inplace=False),
+            SO3Convolution(
+                nfeature_in  = 16,
+                nfeature_out = 24,
+                b_in  = bandwidth//2,
+                b_out = bandwidth//4,
+                grid=grid_so3_2),
+            nn.ReLU(inplace=False),
+
+            SO3Convolution(
+                nfeature_in  = 24,
+                nfeature_out = 24,
+                b_in  = bandwidth//4,
+                b_out = bandwidth//4,
+                grid=grid_so3_3),
+            nn.ReLU(inplace=False),
+            SO3Convolution(
+                nfeature_in  = 24,
+                nfeature_out = 32,
+                b_in  = bandwidth//4,
+                b_out = bandwidth//8,
+                grid=grid_so3_3),
+            nn.ReLU(inplace=False),
+
+            SO3Convolution(
+                nfeature_in  = 32,
+                nfeature_out = 64,
+                b_in  = bandwidth//8,
+                b_out = bandwidth//8,
+                grid=grid_so3_4),
+            nn.ReLU(inplace=False)
+            )
+
+        self.linear = nn.Sequential(
+            # linear 1
+            nn.BatchNorm1d(64),
+            nn.Linear(in_features=64,out_features=64),
+            nn.ReLU(inplace=False),
+            # linear 2
+            nn.BatchNorm1d(64),
+            nn.Linear(in_features=64, out_features=32),
+            nn.ReLU(inplace=False),
+            # linear 3
+            nn.BatchNorm1d(32),
+            nn.Linear(in_features=32, out_features=10)
+        )
+
+    def forward(self, x):
+        x = self.convolutional(x)
+        x = so3_integrate(x)
+        x = self.linear(x)
+        return x
+
+
+
+def main(network):
 
     train_loader, test_loader, train_dataset, _ = load_data(
         MNIST_PATH, BATCH_SIZE)
 
-    classifier = S2ConvNet()
+    if network == 'original':
+        classifier = S2ConvNet_original()
+    elif network == 'deep':
+        classifier = S2ConvNet_deep()
+    else:
+        raise ValueError('Unknown network architecture')
     classifier.to(DEVICE)
 
     print("#params", sum(x.numel() for x in classifier.parameters()))
@@ -151,4 +245,11 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--network",
+                        help="network architecture to use",
+                        default='original',
+                        choices=['original', 'deep'])
+    args = parser.parse_args()
+
+    main(args.network)
