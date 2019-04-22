@@ -52,7 +52,8 @@ An improved model can be selected by calling
 ```bash
 python3 run.py --network=deep
 ```
-This architecture served as baseline for the the Icosahedral CNN [1] (in the baseline run of [1] slightly different hyperparameters like the bandwidth, learning rate decay and batch size were used).
+This architecture served as baseline for the the Icosahedral CNN [[1]](https://arxiv.org/pdf/1902.04615.pdf) (in the baseline run of [[1]](https://arxiv.org/pdf/1902.04615.pdf) slightly different hyperparameters like the bandwidth, learning rate decay and batch size were used).
+It achieves an accuracy of ~99.2%.
 
 
 ## References
