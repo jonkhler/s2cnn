@@ -37,8 +37,26 @@ python3 gendata.py --help
 python3 run_classic.py
 ```
 
-### Run the S2CNN
+### Run S2CNNs
 
+To run the original S2CNN architecture reported in the paper simply call
 ```bash
 python3 run.py
 ```
+or
+```bash
+python3 run.py --network=original
+```
+
+An improved model can be selected by calling
+```bash
+python3 run.py --network=deep
+```
+This architecture served as baseline for the the Icosahedral CNN [1] (in the baseline run of [1] slightly different hyperparameters like the bandwidth, learning rate decay and batch size were used).
+
+
+## References
+
+[1] Taco S. Cohen, Maurice Weiler, Berkay Kicanaoglu, Max Welling,
+[Gauge Equivariant Convolutional Networks and the Icosahedral CNN](https://arxiv.org/pdf/1902.04615.pdf).
+International Conference on Machine Learning (ICML), 2019.
