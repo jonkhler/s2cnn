@@ -25,7 +25,7 @@ def s2_mm(x, y):
     assert y.size(0) == nspec
 
     if x.is_cuda:
-        return _cuda_S2_mm()(x, y)
+        return _cuda_S2_mm.apply(x, y)
 
     nl = round(nspec**0.5)
 
@@ -59,16 +59,15 @@ def s2_mm(x, y):
 
 
 class _cuda_S2_mm(torch.autograd.Function):
-    def __init__(self):  # pylint: disable=W0235
-        super().__init__()
-
-    def forward(self, x, y):  # pylint: disable=W
-        self.save_for_backward(x, y)
+    @staticmethod
+    def forward(ctx, x, y):  # pylint: disable=W
+        ctx.save_for_backward(x, y)
         return _cuda_s2_mm(x, y)
 
-    def backward(self, gradz):  # pylint: disable=W
+    @staticmethod
+    def backward(ctx, gradz):  # pylint: disable=W
         import s2cnn.utils.cuda as cuda_utils
-        x, y = self.saved_tensors
+        x, y = ctx.saved_tensors
         nl = round(x.size(0) ** 0.5)
         nbatch = x.size(1)
         nfeature_in = x.size(2)
@@ -85,14 +84,14 @@ class _cuda_S2_mm(torch.autograd.Function):
 
         gradx = grady = None
 
-        if self.needs_input_grad[0]:
+        if ctx.needs_input_grad[0]:
             gradx = gradz.new_empty((nl ** 2, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl ** 2 * nbatch * nfeature_in, 1024), 1, 1),
                               args=[gradz.contiguous().data_ptr(), y.contiguous().data_ptr(), gradx.data_ptr()],
                               stream=stream)
 
-        if self.needs_input_grad[1]:
+        if ctx.needs_input_grad[1]:
             grady = gradz.new_empty((nl ** 2, nfeature_in, nfeature_out, 2))
             grady_cuda_kernel(block=(cuda_utils.CUDA_NUM_THREADS, 1, 1),
                               grid=(cuda_utils.get_blocks(nl ** 2 * nfeature_in * nfeature_out, 1024), 1, 1),

@@ -26,7 +26,7 @@ def so3_mm(x, y):
     assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
     if x.is_cuda:
-        return _cuda_SO3_mm()(x, y)
+        return _cuda_SO3_mm.apply(x, y)
 
     Fz_list = []
     begin = 0
@@ -62,10 +62,8 @@ def so3_mm(x, y):
 
 
 class _cuda_SO3_mm(torch.autograd.Function):
-    def __init__(self):  # pylint: disable=W0235
-        super().__init__()
-
-    def forward(self, x, y):  # pylint: disable=W
+    @staticmethod
+    def forward(ctx, x, y):  # pylint: disable=W
         '''
         :param x: [l * m * n, batch,      feature_in,  complex]
         :param y: [l * m * n, feature_in, feature_out, complex]
@@ -84,7 +82,7 @@ class _cuda_SO3_mm(torch.autograd.Function):
         nl = round((3 / 4 * nspec) ** (1 / 3))
         assert nspec == nl * (4 * nl ** 2 - 1) // 3
 
-        self.save_for_backward(x, y)
+        ctx.save_for_backward(x, y)
         device = torch.cuda.current_device()
         cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_out, nk=nfeature_in, conj_y=True,
                                                trans_y_spec=True, device=device)
@@ -94,8 +92,9 @@ class _cuda_SO3_mm(torch.autograd.Function):
 
         return output
 
-    def backward(self, gradz):  # pylint: disable=W
-        x, y = self.saved_tensors
+    @staticmethod
+    def backward(ctx, gradz):  # pylint: disable=W
+        x, y = ctx.saved_tensors
         nspec = x.size(0)
         nbatch = x.size(1)
         nfeature_in = x.size(2)
@@ -107,13 +106,13 @@ class _cuda_SO3_mm(torch.autograd.Function):
         gradx = grady = None
 
         device = torch.cuda.current_device()
-        if self.needs_input_grad[0]:
+        if ctx.needs_input_grad[0]:
             gradx_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nbatch, nj=nfeature_in, nk=nfeature_out,
                                                          trans_y_feature=True, device=device)
             gradx = gradz.new_empty((nspec, nbatch, nfeature_in, 2))
             gradx_cuda_kernel(gradz, y, gradx)
 
-        if self.needs_input_grad[1]:
+        if ctx.needs_input_grad[1]:
             grady_cuda_kernel = _setup_so3mm_cuda_kernel(nl=nl, ni=nfeature_out, nj=nfeature_in, nk=nbatch,
                                                          trans_out_feature=True, conj_x=True, trans_x_spec=True,
                                                          trans_x_feature=True, device=device)

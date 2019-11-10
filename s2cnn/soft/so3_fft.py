@@ -445,30 +445,26 @@ __global__ void main_(const float* in, const float* wig, float* out)
 
 
 class SO3_fft_real(torch.autograd.Function):
-    def __init__(self, b_out=None):
-        super(SO3_fft_real, self).__init__()
-        self.b_in = None
-        self.b_out = b_out
+    @staticmethod
+    def forward(ctx, x, b_out=None):  # pylint: disable=W
+        ctx.b_out = b_out
+        ctx.b_in = x.size(-1) // 2
+        return so3_rfft(x, b_out=ctx.b_out)
 
-    def forward(self, x):  # pylint: disable=W
-        self.b_in = x.size(-1) // 2
-        return so3_rfft(x, b_out=self.b_out)
-
+    @staticmethod
     def backward(self, grad_output):  # pylint: disable=W
         # ifft of grad_output is not necessarily real, therefore we cannot use rifft
-        return so3_ifft(grad_output, for_grad=True, b_out=self.b_in)[..., 0]
+        return so3_ifft(grad_output, for_grad=True, b_out=self.b_in)[..., 0], None
 
 
 class SO3_ifft_real(torch.autograd.Function):
-    def __init__(self, b_out=None):
-        super(SO3_ifft_real, self).__init__()
-        self.b_in = None
-        self.b_out = b_out
-
-    def forward(self, x):  # pylint: disable=W
+    @staticmethod
+    def forward(ctx, x, b_out=None):  # pylint: disable=W
         nspec = x.size(0)
-        self.b_in = round((3 / 4 * nspec) ** (1 / 3))
-        return so3_rifft(x, b_out=self.b_out)
+        ctx.b_out = b_out
+        ctx.b_in = round((3 / 4 * nspec) ** (1 / 3))
+        return so3_rifft(x, b_out=ctx.b_out)
 
-    def backward(self, grad_output):  # pylint: disable=W
-        return so3_rfft(grad_output, for_grad=True, b_out=self.b_in)
+    @staticmethod
+    def backward(ctx, grad_output):  # pylint: disable=W
+        return so3_rfft(grad_output, for_grad=True, b_out=ctx.b_in), None
