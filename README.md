@@ -21,7 +21,7 @@ conda activate cuda9
 # s2cnn deps
 #conda install pytorch torchvision cuda90 -c pytorch # get correct command line at http://pytorch.org/
 conda install -c anaconda cupy  
-pip install pynvrtc  
+pip install pynvrtc joblib
 
 # lie_learn deps
 conda install -c anaconda cython  

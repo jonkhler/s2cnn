@@ -1,7 +1,7 @@
 # pylint: disable=E1101,R,C
 import torch
 import numpy as np
-from sklearn.externals import joblib
+import joblib
 
 
 class IndexBatcher:
