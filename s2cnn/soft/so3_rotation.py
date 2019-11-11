@@ -18,7 +18,7 @@ def so3_rotation(x, alpha, beta, gamma):
     Us = _setup_so3_rotation(b, alpha, beta, gamma, device_type=x.device.type, device_index=x.device.index)
 
     # fourier transform
-    x = SO3_fft_real()(x)  # [l * m * n, ..., complex]
+    x = SO3_fft_real.apply(x)  # [l * m * n, ..., complex]
 
     # rotated spectrum
     Fz_list = []
@@ -40,7 +40,7 @@ def so3_rotation(x, alpha, beta, gamma):
         begin += size
 
     Fz = torch.cat(Fz_list, 0)  # [l * m * n, batch, complex]
-    z = SO3_ifft_real()(Fz)
+    z = SO3_ifft_real.apply(Fz)
 
     z = z.contiguous()
     z = z.view(*x_size)

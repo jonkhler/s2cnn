@@ -43,7 +43,7 @@ class SO3Convolution(Module):
         assert x.size(3) == 2 * self.b_in
         assert x.size(4) == 2 * self.b_in
 
-        x = SO3_fft_real(b_out=self.b_out)(x)  # [l * m * n, batch, feature_in, complex]
+        x = SO3_fft_real.apply(x, self.b_out)  # [l * m * n, batch, feature_in, complex]
         y = so3_rft(self.kernel * self.scaling, self.b_out, self.grid)  # [l * m * n, feature_in, feature_out, complex]
         assert x.size(0) == y.size(0)
         assert x.size(2) == y.size(1)
@@ -51,7 +51,7 @@ class SO3Convolution(Module):
         assert z.size(0) == x.size(0)
         assert z.size(1) == x.size(1)
         assert z.size(2) == y.size(2)
-        z = SO3_ifft_real()(z)  # [batch, feature_out, beta, alpha, gamma]
+        z = SO3_ifft_real.apply(z)  # [batch, feature_out, beta, alpha, gamma]
 
         z = z + self.bias
 

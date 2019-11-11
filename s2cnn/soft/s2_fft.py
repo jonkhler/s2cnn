@@ -223,34 +223,30 @@ __global__ void main_(const float* in, const float* wig, float* out) {
 
 
 class S2_fft_real(torch.autograd.Function):
-    def __init__(self, b_out=None):
-        super(S2_fft_real, self).__init__()
-        self.b_in = None
-        self.b_out = b_out
-
-    def forward(self, x):  # pylint: disable=W
+    @staticmethod
+    def forward(ctx, x, b_out=None):  # pylint: disable=W
         from s2cnn.utils.complex import as_complex
-        self.b_in = x.size(-1) // 2
-        return s2_fft(as_complex(x), b_out=self.b_out)
+        ctx.b_out = b_out
+        ctx.b_in = x.size(-1) // 2
+        return s2_fft(as_complex(x), b_out=ctx.b_out)
 
-    def backward(self, grad_output):  # pylint: disable=W
-        return s2_ifft(grad_output, for_grad=True, b_out=self.b_in)[..., 0]
+    @staticmethod
+    def backward(ctx, grad_output):  # pylint: disable=W
+        return s2_ifft(grad_output, for_grad=True, b_out=ctx.b_in)[..., 0], None
 
 
 class S2_ifft_real(torch.autograd.Function):
-    def __init__(self, b_out=None):
-        super(S2_ifft_real, self).__init__()
-        self.b_in = None
-        self.b_out = b_out
-
-    def forward(self, x):  # pylint: disable=W
+    @staticmethod
+    def forward(ctx, x, b_out=None):  # pylint: disable=W
         nspec = x.size(0)
-        self.b_in = round(nspec ** 0.5)
-        return s2_ifft(x, b_out=self.b_out)[..., 0]
+        ctx.b_out = b_out
+        ctx.b_in = round(nspec ** 0.5)
+        return s2_ifft(x, b_out=ctx.b_out)[..., 0]
 
-    def backward(self, grad_output):  # pylint: disable=W
+    @staticmethod
+    def backward(ctx, grad_output):  # pylint: disable=W
         from s2cnn.utils.complex import as_complex
-        return s2_fft(as_complex(grad_output), for_grad=True, b_out=self.b_in)
+        return s2_fft(as_complex(grad_output), for_grad=True, b_out=ctx.b_in), None
 
 
 def test_s2fft_cuda_cpu():

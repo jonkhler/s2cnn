@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import scipy.io as spio
 from scipy.spatial import distance as spdist
-from sklearn.externals import joblib
+import joblib
 import lie_learn.spaces.S2 as S2
 
 

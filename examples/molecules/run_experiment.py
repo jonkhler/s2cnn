@@ -76,7 +76,7 @@ def train_baseline(mlp, data, train_batches, test_batches, num_epochs,
             loss = eval_batch_mlp(mlp, data, batch_idxs, criterion, device_id)
             loss.backward()
             optim.step()
-            train_losses.append(loss.data)
+            train_losses.append(loss.item())
             print("\riteration {}/{}".format(
                 iteration+1, train_batches.num_iterations()), end="")
         print()
@@ -85,7 +85,7 @@ def train_baseline(mlp, data, train_batches, test_batches, num_epochs,
         for iteration, batch_idxs in enumerate(test_batches):
             mlp.eval()
             loss = eval_batch_mlp(mlp, data, batch_idxs, criterion)
-            test_losses.append(loss.data)
+            test_losses.append(loss.item())
             print("\riteration {}/{}".format(
                 iteration+1, test_batches.num_iterations()), end="")
         print()
@@ -117,7 +117,7 @@ def train_s2cnn(mlp, s2cnn, data, train_batches, test_batches, num_epochs,
             loss = eval_batch_s2cnn(mlp, s2cnn, data, batch_idxs, criterion)
             loss.backward()
             optim.step()
-            train_losses.append(loss.data)
+            train_losses.append(loss.item())
             print("\riteration {}/{} - batch loss: {}".format(
                 iteration+1, train_batches.num_iterations(),
                 np.sqrt(train_losses[-1])), end="")
@@ -128,7 +128,7 @@ def train_s2cnn(mlp, s2cnn, data, train_batches, test_batches, num_epochs,
             s2cnn.eval()
             mlp.eval()
             loss = eval_batch_s2cnn(mlp, s2cnn, data, batch_idxs, criterion)
-            test_losses.append(loss.data)
+            test_losses.append(loss.item())
             print("\riteration {}/{}  - batch loss: {}".format(
                 iteration+1, test_batches.num_iterations(),
                 np.sqrt(test_losses[-1])), end="")

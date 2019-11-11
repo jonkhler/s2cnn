@@ -37,10 +37,10 @@ class S2Convolution(Module):
         assert x.size(1) == self.nfeature_in
         assert x.size(2) == 2 * self.b_in
         assert x.size(3) == 2 * self.b_in
-        x = S2_fft_real(b_out=self.b_out)(x)  # [l * m, batch, feature_in, complex]
+        x = S2_fft_real.apply(x, self.b_out)  # [l * m, batch, feature_in, complex]
         y = s2_rft(self.kernel * self.scaling, self.b_out, self.grid)  # [l * m, feature_in, feature_out, complex]
         z = s2_mm(x, y)  # [l * m * n, batch, feature_out, complex]
-        z = SO3_ifft_real()(z)  # [batch, feature_out, beta, alpha, gamma]
+        z = SO3_ifft_real.apply(z)  # [batch, feature_out, beta, alpha, gamma]
 
         z = z + self.bias
 
