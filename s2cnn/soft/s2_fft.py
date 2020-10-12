@@ -150,7 +150,7 @@ def _setup_s2_fft(b, nl, weighted):
 def _setup_s2fft_cuda_kernel(b, nspec, nbatch, device=0):
     kernel = Template('''
 #define COMPUTE_LM(s) \
-    int l = powf(s, 0.5); \
+    int l = sqrtf(s); \
     int m = (s - l * l) - l;
 
 #define MOD(i, n) (((i) + (n)) % (n))
