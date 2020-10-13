@@ -202,7 +202,7 @@ __global__ void main_(const float* in_x, const float* in_y, float* out) {
 def _setup_s2mm_gradx_cuda_kernel(nbatch, nspec, nl, nfeature_in, nfeature_out, device=0):
     kernel = Template('''
 #define COMPUTE_LM(s) \
-    int l = powf(s, 0.5); \
+    int l = sqrtf(s); \
     int L = (4 * l * l - 1) * l / 3; \
     int m = s - l * l - l;
 
