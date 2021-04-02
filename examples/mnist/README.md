@@ -1,6 +1,6 @@
 # Spherical MNIST example
 
-## Generate the sphericla MNIST data set
+## Generate the spherical MNIST data set
 
 - __NR__: non rotated
 - __R__: randomly rotated
