@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='s2cnn',
-    version="1.0.0",
+    version="1.0.1",
     author="Mario Geiger, Taco Cohen, Jonas Koehler",
     description=("SO(3) equivariant CNNs for PyTorch."),
     license="MIT",
