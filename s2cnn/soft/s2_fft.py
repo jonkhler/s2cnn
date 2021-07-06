@@ -1,6 +1,7 @@
 # pylint: disable=R,C,E1101,E1102
 from functools import lru_cache
 import torch
+import torch.fft
 import torch.cuda
 from string import Template
 from s2cnn.utils.decorator import cached_dirpklgz
