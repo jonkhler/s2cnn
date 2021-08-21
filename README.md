@@ -8,7 +8,7 @@ This library contains a PyTorch implementation of the rotation equivariant CNNs 
 
 ## Dependencies
 
-* __PyTorch__: http://pytorch.org/ (>= 0.4.0)
+* __PyTorch__: http://pytorch.org/ ~~(>= 0.4.0)~~ (>= 1.6.0) (due to view_as_real/view_as_complex in pytorch)
 * __cupy__: https://github.com/cupy/cupy
 * __lie_learn__: https://github.com/AMLab-Amsterdam/lie_learn
 * __pynvrtc__: https://github.com/NVIDIA/pynvrtc
@@ -17,6 +17,13 @@ This library contains a PyTorch implementation of the rotation equivariant CNNs 
 ```bash
 conda create --name cuda9 python=3.6 
 conda activate cuda9
+
+# addition to 2021-08-22 for run
+pip install cupy-cuda91
+# pytorch >= 1.6.0
+conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 -c pytorch
+# for lie_learn
+pip install git+https://github.com/AMLab-Amsterdam/lie_learn@6d02c2a1705a05340a128cb8d86c19076d0f5f46
 
 # s2cnn deps
 #conda install pytorch torchvision cuda90 -c pytorch # get correct command line at http://pytorch.org/

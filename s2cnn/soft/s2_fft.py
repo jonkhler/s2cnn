@@ -34,8 +34,8 @@ def s2_fft(x, for_grad=False, b_out=None):
 
     wigner = _setup_wigner(b_in, nl=b_out, weighted=not for_grad, device=x.device)
     wigner = wigner.view(2 * b_in, -1)  # [beta, l * m] (2 * b_in, nspec)
-
-    x = torch.view_as_real(torch.fft.fft(torch.view_as_complex(x)))  # [batch, beta, m, complex]
+    import torch.fft as fft
+    x = torch.view_as_real(fft.fft(torch.view_as_complex(x)))  # [batch, beta, m, complex]
 
     output = x.new_empty((nspec, nbatch, 2))
     if x.is_cuda and x.dtype == torch.float32:
