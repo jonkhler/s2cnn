@@ -91,8 +91,6 @@ def so3_rfft(x, for_grad=False, b_out=None):
         cuda_kernel = _setup_so3fft_cuda_kernel(b_in=b_in, b_out=b_out, nbatch=nbatch, real_input=True, device=x.device.index)
         cuda_kernel(x, wigner, output)
     else:
-        # TODO use torch.rfft
-        x = torch.fft(torch.stack((x, torch.zeros_like(x)), dim=-1), 2)
         x = torch.view_as_real(torch.fft.rfftn(torch.view_as_complex(torch.stack((x, torch.zeros_like(x)), dim=-1)), dim=[2,3]))
         if b_in < b_out:
             output.fill_(0)
