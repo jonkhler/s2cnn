@@ -4,6 +4,7 @@ import torch
 import torch.cuda
 from string import Template
 from s2cnn.utils.decorator import cached_dirpklgz
+import torch.fft
 
 
 # inspired by https://gist.github.com/szagoruyko/89f83b6f5f4833d3c8adf81ee49f22a8
