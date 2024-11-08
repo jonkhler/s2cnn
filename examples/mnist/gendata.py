@@ -127,8 +127,8 @@ def sample_bilinear(signal, rx, ry):
     iy = ry.astype(int)
 
     # obtain four sample coordinates
-    ix0 = ix - 1
-    iy0 = iy - 1
+    ix0 = ix
+    iy0 = iy
     ix1 = ix + 1
     iy1 = iy + 1
 
